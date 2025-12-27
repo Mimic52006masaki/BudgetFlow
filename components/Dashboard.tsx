@@ -305,8 +305,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="col-span-2 text-right">金額</div>
             </div>
 
-            <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[600px]">
-              <div className="divide-y divide-border-subtle min-w-[800px]">
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-y-auto custom-scrollbar max-h-[600px]">
+              <div className="divide-y divide-border-subtle">
                 {monthlyCosts.map(cost => (
                   <div key={cost.id} className={`group grid grid-cols-12 px-6 py-4 items-center hover:bg-background-element transition-colors relative ${cost.status === 'pending' && new Date().getDate() > cost.paymentDay ? 'bg-accent-danger/5 border-l-2 border-accent-danger' : ''}`}>
                     <div className="col-span-1 flex justify-center">
@@ -459,6 +460,88 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         >
                           ¥{(cost.actualAmount || cost.budget).toLocaleString()}
                         </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden overflow-y-auto custom-scrollbar max-h-[600px]">
+              <div className="space-y-3 p-4">
+                {monthlyCosts.map(cost => (
+                  <div key={`mobile-${cost.id}`} className={`bg-background-element border border-border-subtle p-4 rounded-sm ${cost.status === 'pending' && cost.paymentDate < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className={`font-medium text-sm ${cost.status === 'paid' ? 'text-neutral-muted line-through' : cost.status === 'skipped' ? 'text-neutral-muted line-through' : 'text-neutral-light'}`}>{cost.name}</h4>
+                      <div className="flex gap-1">
+                        {cost.status === 'paid' ? (
+                          <button
+                            onClick={() => onCancelPayment(cost.id)}
+                            className="w-6 h-6 rounded-sm bg-accent-success/20 border border-accent-success/50 text-accent-success hover:bg-accent-success/30 transition-all flex items-center justify-center"
+                            title="支払取消"
+                          >
+                            <span className="material-symbols-outlined text-sm font-bold">undo</span>
+                          </button>
+                        ) : cost.status === 'skipped' ? (
+                          <button
+                            onClick={() => onUnskipCost(cost.id)}
+                            className="w-6 h-6 rounded-sm bg-neutral-muted/20 border border-neutral-muted/50 text-neutral-muted hover:bg-neutral-muted/30 transition-all flex items-center justify-center"
+                            title="スキップ取消"
+                          >
+                            <span className="material-symbols-outlined text-sm font-bold">refresh</span>
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => onEditCost && onEditCost({ id: cost.id, name: cost.name, amount: cost.budget, dueDate: `${cost.paymentDate.getFullYear()}-${String(cost.paymentDate.getMonth() + 1).padStart(2, '0')}-${String(cost.paymentDate.getDate()).padStart(2, '0')}`, bankId: cost.temporaryAccountId || cost.bankAccountId, status: cost.status === 'paid' ? 'PAID' : 'PENDING' } as FixedCost)}
+                              className="w-6 h-6 rounded-sm border border-neutral-muted hover:border-primary hover:bg-primary/10 transition-all flex items-center justify-center"
+                              title="支払実行"
+                            >
+                              <span className="material-symbols-outlined text-sm">payment</span>
+                            </button>
+                            <button
+                              onClick={() => onSkipCost(cost.id)}
+                              className="w-6 h-6 rounded-sm border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
+                              title="スキップ"
+                            >
+                              <span className="material-symbols-outlined text-sm">block</span>
+                            </button>
+                            <button
+                              onClick={() => onDeleteItem && onDeleteItem(cost.id)}
+                              className="w-6 h-6 rounded-sm border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
+                              title="削除"
+                            >
+                              <span className="material-symbols-outlined text-sm text-accent-danger">delete</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-neutral-muted">金額:</span>
+                        <span className="font-mono text-neutral-light">¥{(cost.actualAmount || cost.budget).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-neutral-muted">出所:</span>
+                        <span className="font-mono text-neutral-light">{accounts.find(a => a.id === (cost.temporaryAccountId || cost.bankAccountId))?.name}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-neutral-muted">予定日:</span>
+                        <span className="font-mono text-neutral-light">
+                          {(() => {
+                            const date = cost.paymentDate;
+                            return `${date.getMonth() + 1}/${date.getDate()}`;
+                          })()}
+                        </span>
+                      </div>
+                      {cost.status === 'paid' && <p className="text-[10px] text-accent-success/70 font-mono">実行済み</p>}
+                      {cost.status === 'skipped' && <p className="text-[10px] text-neutral-muted/70 font-mono">スキップ済み</p>}
+                      {cost.status === 'pending' && cost.paymentDate < new Date() && (
+                        <p className="text-[10px] text-accent-danger font-bold flex items-center gap-1 font-mono uppercase">
+                          <span className="material-symbols-outlined text-[10px] filled animate-pulse">warning</span> 期限超過
+                        </p>
                       )}
                     </div>
                   </div>
