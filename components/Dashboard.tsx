@@ -305,8 +305,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="col-span-2 text-right">金額</div>
             </div>
 
-            <div className="overflow-y-auto custom-scrollbar max-h-[600px]">
-              <div className="divide-y divide-border-subtle">
+            <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[600px]">
+              <div className="divide-y divide-border-subtle min-w-[800px]">
                 {monthlyCosts.map(cost => (
                   <div key={cost.id} className={`group grid grid-cols-12 px-6 py-4 items-center hover:bg-background-element transition-colors relative ${cost.status === 'pending' && new Date().getDate() > cost.paymentDay ? 'bg-accent-danger/5 border-l-2 border-accent-danger' : ''}`}>
                     <div className="col-span-1 flex justify-center">
