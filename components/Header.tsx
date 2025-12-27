@@ -46,10 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => 
           </nav>
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-1.5 bg-background-element rounded-full border border-border-subtle">
-          <div className="w-2 h-2 rounded-full bg-accent-success animate-pulse"></div>
-          <span className="text-xs font-mono text-neutral-muted">システムオンライン</span>
-        </div>
+
       </div>
     </header>
   );
