@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BudgetFlow CMD</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0EA5E9",
+                        "primary-dark": "#0284C7",
+                        "background-base": "#F8FAFC",
+                        "background-panel": "#FFFFFF",
+                        "background-element": "#F1F5F9",
+                        "border-subtle": "#E2E8F0",
+                        "neutral-light": "#334155",
+                        "neutral-muted": "#64748B",
+                        "accent-cyan": "#06B6D4",
+                        "accent-purple": "#7C3AED",
+                        "accent-danger": "#DC2626",
+                        "accent-success": "#16A34A"
+                    },
+                    fontFamily: {
+                        sans: ["Noto Sans JP", "Inter", "sans-serif"],
+                        display: ["Inter", "sans-serif"],
+                        mono: ["Inter", "monospace"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @layer utilities {
+            .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: #F1F5F9; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 20px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+        }
+
+        .hud-panel {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            position: relative;
+        }
+        
+        .hud-corner {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: #E2E8F0;
+            border-style: solid;
+            transition: all 0.3s ease;
+        }
+        .hud-panel:hover .hud-corner {
+            border-color: #0EA5E9;
+        }
+        .hud-corner-tl { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+        .hud-corner-tr { top: -1px; right: -1px; border-width: 1px 1px 0 0; }
+        .hud-corner-bl { bottom: -1px; left: -1px; border-width: 0 0 1px 1px; }
+        .hud-corner-br { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+        .cyber-btn {
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: all 0.2s ease;
+        }
+        
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(226, 232, 240, 0.8) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
+            background-size: 40px 40px;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -1;
+        }
+
+        .data-stream {
+            position: absolute;
+            top: 0; right: 0; width: 2px; height: 100%;
+            background: linear-gradient(to bottom, transparent, #0EA5E9, transparent);
+            animation: dataStream 3s infinite linear;
+            opacity: 0.5;
+        }
+        @keyframes dataStream {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-background-base text-neutral-light min-h-screen">
+    <div id="root"></div>
+    <div class="grid-bg"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
