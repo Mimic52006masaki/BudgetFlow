@@ -46,22 +46,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => 
           </nav>
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 px-4 py-1.5 bg-background-element rounded-full border border-border-subtle">
-            <div className="w-2 h-2 rounded-full bg-accent-success animate-pulse"></div>
-            <span className="text-xs font-mono text-neutral-muted">システムオンライン</span>
-          </div>
-          <div className="flex items-center gap-4 border-l border-border-subtle pl-6">
-            <button className="relative text-neutral-muted hover:text-primary transition-colors">
-              <span className="material-symbols-outlined text-xl">notifications</span>
-              <span className="absolute top-0 right-0 w-2 h-2 bg-accent-danger rounded-full"></span>
-            </button>
-            <div 
-              className="h-9 w-9 rounded-sm bg-neutral-muted/20 bg-cover bg-center border border-primary/30 ring-2 ring-transparent hover:ring-primary/50 transition-all cursor-pointer"
-              style={{ backgroundImage: `url(https://picsum.photos/seed/user/100/100)` }}
-              onClick={() => onViewChange(View.LOGIN)}
-            ></div>
-          </div>
+        <div className="flex items-center gap-3 px-4 py-1.5 bg-background-element rounded-full border border-border-subtle">
+          <div className="w-2 h-2 rounded-full bg-accent-success animate-pulse"></div>
+          <span className="text-xs font-mono text-neutral-muted">システムオンライン</span>
         </div>
       </div>
     </header>
