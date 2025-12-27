@@ -297,188 +297,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </button>
             </div>
             
-            <div className="grid grid-cols-12 px-6 py-2 bg-background-element border-b border-border-subtle text-[10px] font-mono font-bold text-neutral-muted uppercase tracking-wider sticky top-0 z-10">
-              <div className="col-span-1 text-center">ステータス</div>
-              <div className="col-span-4 pl-2">説明 / 期限</div>
-              <div className="col-span-3">出所</div>
-              <div className="col-span-2">予定日</div>
-              <div className="col-span-2 text-right">金額</div>
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden lg:block overflow-y-auto custom-scrollbar max-h-[600px]">
-              <div className="divide-y divide-border-subtle">
-                {monthlyCosts.map(cost => (
-                  <div key={cost.id} className={`group grid grid-cols-12 px-6 py-4 items-center hover:bg-background-element transition-colors relative ${cost.status === 'pending' && new Date().getDate() > cost.paymentDay ? 'bg-accent-danger/5 border-l-2 border-accent-danger' : ''}`}>
-                    <div className="col-span-1 flex justify-center">
-                      {cost.status === 'paid' ? (
-                        <button
-                          onClick={() => onCancelPayment(cost.id)}
-                          className="w-5 h-5 rounded-sm bg-accent-success/20 border border-accent-success/50 text-accent-success hover:bg-accent-success/30 transition-all flex items-center justify-center"
-                          title="支払取消"
-                        >
-                          <span className="material-symbols-outlined text-sm font-bold">undo</span>
-                        </button>
-                      ) : cost.status === 'skipped' ? (
-                        <button
-                          onClick={() => onUnskipCost(cost.id)}
-                          className="w-5 h-5 rounded-sm bg-neutral-muted/20 border border-neutral-muted/50 text-neutral-muted hover:bg-neutral-muted/30 transition-all flex items-center justify-center"
-                          title="スキップ取消"
-                        >
-                          <span className="material-symbols-outlined text-sm font-bold">refresh</span>
-                        </button>
-                      ) : (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => onEditCost && onEditCost({ id: cost.id, name: cost.name, amount: cost.budget, dueDate: `${cost.paymentDate.getFullYear()}-${String(cost.paymentDate.getMonth() + 1).padStart(2, '0')}-${String(cost.paymentDate.getDate()).padStart(2, '0')}`, bankId: cost.temporaryAccountId || cost.bankAccountId, status: cost.status === 'paid' ? 'PAID' : 'PENDING' } as FixedCost)}
-                            className="w-5 h-5 rounded-sm border border-neutral-muted hover:border-primary hover:bg-primary/10 transition-all flex items-center justify-center"
-                            title="支払実行"
-                          >
-                            <span className="material-symbols-outlined text-sm">payment</span>
-                          </button>
-                          <button
-                            onClick={() => onSkipCost(cost.id)}
-                            className="w-5 h-5 rounded-sm border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
-                            title="スキップ"
-                          >
-                            <span className="material-symbols-outlined text-sm">block</span>
-                          </button>
-                          <button
-                            onClick={() => onDeleteItem && onDeleteItem(cost.id)}
-                            className="w-5 h-5 rounded-sm border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
-                            title="削除"
-                          >
-                            <span className="material-symbols-outlined text-sm text-accent-danger">delete</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="col-span-4 pl-2">
-                      <p className={`font-medium text-sm ${cost.status === 'paid' ? 'text-neutral-muted line-through' : cost.status === 'skipped' ? 'text-neutral-muted line-through' : 'text-neutral-light'}`}>{cost.name}</p>
-                      {cost.status === 'paid' && <p className="text-[10px] text-accent-success/70 font-mono mt-0.5">実行済み</p>}
-                      {cost.status === 'skipped' && <p className="text-[10px] text-neutral-muted/70 font-mono mt-0.5">スキップ済み</p>}
-                      {cost.status === 'pending' && cost.paymentDate < new Date() && (
-                        <p className="text-[10px] text-accent-danger font-bold mt-0.5 flex items-center gap-1 font-mono uppercase">
-                          <span className="material-symbols-outlined text-[10px] filled animate-pulse">warning</span> 期限超過
-                        </p>
-                      )}
-                    </div>
-                    <div className="col-span-3 text-xs text-neutral-muted font-mono">
-                      {editingField?.costId === cost.id && editingField.field === 'bankAccountId' ? (
-                        <select
-                          value={editingValue}
-                          onChange={(e) => {
-                            setEditingValue(e.target.value);
-                            onUpdateItem && onUpdateItem(cost.id, { bankAccountId: e.target.value });
-                            setEditingField(null);
-                          }}
-                          className="w-full bg-background-element border border-primary p-1 text-xs"
-                          autoFocus
-                        >
-                          {accounts.map(acc => (
-                            <option key={acc.id} value={acc.id}>{acc.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div
-                          onClick={() => {
-                            setEditingValue(cost.temporaryAccountId || cost.bankAccountId);
-                            setEditingField({ costId: cost.id, field: 'bankAccountId' });
-                          }}
-                          className="cursor-pointer hover:bg-background-element/50 px-1 py-0.5 rounded"
-                        >
-                          {accounts.find(a => a.id === (cost.temporaryAccountId || cost.bankAccountId))?.name}
-                        </div>
-                      )}
-                    </div>
-                    <div className="col-span-2 text-xs text-neutral-muted font-mono">
-                      {editingField?.costId === cost.id && editingField.field === 'paymentDay' ? (
-                        <input
-                          type="date"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={(e) => {
-                            onUpdateItem && onUpdateItem(cost.id, { paymentDate: new Date(e.target.value) });
-                            setEditingField(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              onUpdateItem && onUpdateItem(cost.id, { paymentDate: new Date(e.currentTarget.value) });
-                              setEditingField(null);
-                            } else if (e.key === 'Escape') {
-                              setEditingField(null);
-                            }
-                          }}
-                          className="w-full bg-background-element border border-primary p-1 text-xs"
-                          autoFocus
-                        />
-                      ) : (
-                        <div
-                          onClick={() => {
-                            setEditingValue(cost.paymentDate.toISOString().split('T')[0]);
-                            setEditingField({ costId: cost.id, field: 'paymentDay' });
-                          }}
-                          className="cursor-pointer hover:bg-background-element/50 px-1 py-0.5 rounded"
-                        >
-                          {(() => {
-                            const date = cost.paymentDate;
-                            return `${date.getMonth() + 1}/${date.getDate()}`;
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="col-span-2 text-right font-mono font-bold text-neutral-light">
-                      {editingField?.costId === cost.id && editingField.field === 'budget' ? (
-                        <input
-                          type="number"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onBlur={(e) => {
-                            const value = parseInt(e.target.value) || 0;
-                            onUpdateItem && onUpdateItem(cost.id, { budget: value });
-                            setEditingField(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const value = parseInt(e.currentTarget.value) || 0;
-                              onUpdateItem && onUpdateItem(cost.id, { budget: value });
-                              setEditingField(null);
-                            } else if (e.key === 'Escape') {
-                              setEditingField(null);
-                            }
-                          }}
-                          className="w-full bg-background-element border border-primary p-1 text-xs font-mono text-right"
-                          autoFocus
-                        />
-                      ) : (
-                        <div
-                          onClick={() => {
-                            setEditingValue(cost.budget.toString());
-                            setEditingField({ costId: cost.id, field: 'budget' });
-                          }}
-                          className="cursor-pointer hover:bg-background-element/50 px-1 py-0.5 rounded"
-                        >
-                          ¥{(cost.actualAmount || cost.budget).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Mobile Card View */}
-            <div className="lg:hidden overflow-y-auto custom-scrollbar max-h-[600px]">
+            <div className="overflow-y-auto custom-scrollbar max-h-[600px]">
               <div className="space-y-3 p-4">
                 {monthlyCosts.map(cost => (
-                  <div key={`mobile-${cost.id}`} className={`bg-background-element border border-border-subtle p-4 rounded-sm ${cost.status === 'pending' && cost.paymentDate < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
+                  <div key={cost.id} className={`group relative bg-background-element border border-border-subtle p-4 rounded-sm hover:border-primary/50 transition-all active:scale-[0.99] ${cost.status === 'pending' && cost.paymentDate < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
                     <div className="flex justify-between items-start mb-3">
-                      <h4 className={`font-medium text-sm ${cost.status === 'paid' ? 'text-neutral-muted line-through' : cost.status === 'skipped' ? 'text-neutral-muted line-through' : 'text-neutral-light'}`}>{cost.name}</h4>
+                      <div className="flex items-center gap-3">
+                        <div className={`size-10 rounded-full bg-gray-100 flex items-center justify-center text-text-sub shrink-0 ${cost.status === 'paid' ? 'bg-accent-success/10 text-accent-success' : cost.status === 'skipped' ? 'bg-neutral-muted/10 text-neutral-muted' : 'bg-primary/10 text-primary group-hover:bg-primary/20'}`}>
+                          <span className="material-symbols-outlined text-lg">
+                            {cost.status === 'paid' ? 'check_circle' : cost.status === 'skipped' ? 'block' : 'payment'}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className={`font-medium text-sm ${cost.status === 'paid' || cost.status === 'skipped' ? 'line-through' : ''}`}>{cost.name}</h4>
+                          <p className="text-xs text-text-sub">
+                            {(() => {
+                              const date = cost.paymentDate;
+                              return `${date.getMonth() + 1}月${date.getDate()}日 予定`;
+                            })()}
+                          </p>
+                        </div>
+                      </div>
                       <div className="flex gap-1">
                         {cost.status === 'paid' ? (
                           <button
                             onClick={() => onCancelPayment(cost.id)}
-                            className="w-6 h-6 rounded-sm bg-accent-success/20 border border-accent-success/50 text-accent-success hover:bg-accent-success/30 transition-all flex items-center justify-center"
+                            className="w-8 h-8 rounded-full bg-accent-success/20 border border-accent-success/50 text-accent-success hover:bg-accent-success/30 transition-all flex items-center justify-center"
                             title="支払取消"
                           >
                             <span className="material-symbols-outlined text-sm font-bold">undo</span>
@@ -486,7 +330,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         ) : cost.status === 'skipped' ? (
                           <button
                             onClick={() => onUnskipCost(cost.id)}
-                            className="w-6 h-6 rounded-sm bg-neutral-muted/20 border border-neutral-muted/50 text-neutral-muted hover:bg-neutral-muted/30 transition-all flex items-center justify-center"
+                            className="w-8 h-8 rounded-full bg-neutral-muted/20 border border-neutral-muted/50 text-neutral-muted hover:bg-neutral-muted/30 transition-all flex items-center justify-center"
                             title="スキップ取消"
                           >
                             <span className="material-symbols-outlined text-sm font-bold">refresh</span>
@@ -495,21 +339,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           <>
                             <button
                               onClick={() => onEditCost && onEditCost({ id: cost.id, name: cost.name, amount: cost.budget, dueDate: `${cost.paymentDate.getFullYear()}-${String(cost.paymentDate.getMonth() + 1).padStart(2, '0')}-${String(cost.paymentDate.getDate()).padStart(2, '0')}`, bankId: cost.temporaryAccountId || cost.bankAccountId, status: cost.status === 'paid' ? 'PAID' : 'PENDING' } as FixedCost)}
-                              className="w-6 h-6 rounded-sm border border-neutral-muted hover:border-primary hover:bg-primary/10 transition-all flex items-center justify-center"
+                              className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-colors"
                               title="支払実行"
                             >
-                              <span className="material-symbols-outlined text-sm">payment</span>
+                              <span className="material-symbols-outlined text-sm">check</span>
+                              支払う
                             </button>
                             <button
                               onClick={() => onSkipCost(cost.id)}
-                              className="w-6 h-6 rounded-sm border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
+                              className="w-8 h-8 rounded-full border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
                               title="スキップ"
                             >
                               <span className="material-symbols-outlined text-sm">block</span>
                             </button>
                             <button
                               onClick={() => onDeleteItem && onDeleteItem(cost.id)}
-                              className="w-6 h-6 rounded-sm border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
+                              className="w-8 h-8 rounded-full border border-neutral-muted hover:border-accent-danger hover:bg-accent-danger/10 transition-all flex items-center justify-center"
                               title="削除"
                             >
                               <span className="material-symbols-outlined text-sm text-accent-danger">delete</span>
@@ -518,32 +363,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         )}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-neutral-muted">金額:</span>
-                        <span className="font-mono text-neutral-light">¥{(cost.actualAmount || cost.budget).toLocaleString()}</span>
+                    <div className="flex justify-between items-center">
+                      <div className="text-xs text-text-sub">
+                        {accounts.find(a => a.id === (cost.temporaryAccountId || cost.bankAccountId))?.name}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-neutral-muted">出所:</span>
-                        <span className="font-mono text-neutral-light">{accounts.find(a => a.id === (cost.temporaryAccountId || cost.bankAccountId))?.name}</span>
+                      <div className="text-lg font-bold text-text-main tracking-tight">
+                        ¥{(cost.actualAmount || cost.budget).toLocaleString()}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-neutral-muted">予定日:</span>
-                        <span className="font-mono text-neutral-light">
-                          {(() => {
-                            const date = cost.paymentDate;
-                            return `${date.getMonth() + 1}/${date.getDate()}`;
-                          })()}
-                        </span>
-                      </div>
-                      {cost.status === 'paid' && <p className="text-[10px] text-accent-success/70 font-mono">実行済み</p>}
-                      {cost.status === 'skipped' && <p className="text-[10px] text-neutral-muted/70 font-mono">スキップ済み</p>}
-                      {cost.status === 'pending' && cost.paymentDate < new Date() && (
-                        <p className="text-[10px] text-accent-danger font-bold flex items-center gap-1 font-mono uppercase">
-                          <span className="material-symbols-outlined text-[10px] filled animate-pulse">warning</span> 期限超過
-                        </p>
-                      )}
                     </div>
+                    {cost.status === 'pending' && cost.paymentDate < new Date() && (
+                      <div className="mt-2 text-xs text-accent-danger font-medium flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm filled animate-pulse">warning</span>
+                        期限超過
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
