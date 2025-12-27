@@ -77,10 +77,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
         <div className="flex gap-3">
-          <button className="cyber-btn flex items-center gap-2 px-6 py-2.5 bg-background-element border border-border-subtle text-xs font-bold uppercase tracking-wider text-neutral-light hover:border-primary hover:text-primary transition-colors">
-            <span className="material-symbols-outlined text-sm">edit_calendar</span>
-            給料日設定
-          </button>
           {activePeriod ? (
             <button
               onClick={() => onClosePeriod()}
