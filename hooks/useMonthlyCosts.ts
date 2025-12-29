@@ -35,11 +35,9 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
       const costsData: MonthlyFixedCost[] = snapshot.docs.map(doc => {
         const data = doc.data();
 
-        const paymentDate = toDateSafe(data.paymentDate);
-        if (!paymentDate) {
-          console.warn('paymentDate is null for doc', doc.id);
-        }
+        // paymentDate がない場合は paidAt を代わりに使う
         const paidAt = toDateSafe(data.paidAt);
+        const paymentDate = toDateSafe(data.paymentDate) || paidAt;
 
         return {
           id: doc.id,
@@ -62,7 +60,7 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
     return () => unsubscribe();
   }, [user, salaryPeriodId]);
 
-  const payCost = async (costId: string, actualAmount: number, accountId: string, paidAt: string) => {
+  const payCost = async (costId: string, actualAmount: number, accountId: string, paidAt: string | Date) => {
     if (!user) return;
 
     console.log('payCost called', { costId, actualAmount, accountId, paidAt });
@@ -85,10 +83,13 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
       if (cost.status !== 'pending') throw new Error('Cost is not pending');
       if (account.balance < actualAmount) throw new Error('Insufficient balance');
 
+      const paidDate = paidAt instanceof Date ? paidAt : new Date(paidAt);
+
       const updateData: any = {
         status: 'paid',
         actualAmount,
-        paidAt: new Date(paidAt),
+        paidAt: paidDate,
+        paymentDate: paidDate, // 支払日に合わせて paymentDate を更新
       };
       if (accountId !== cost.bankAccountId) {
         updateData.temporaryAccountId = accountId;
