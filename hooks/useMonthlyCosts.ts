@@ -65,6 +65,8 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
   const payCost = async (costId: string, actualAmount: number, accountId: string, paidAt: string) => {
     if (!user) return;
 
+    console.log('payCost called', { costId, actualAmount, accountId, paidAt });
+
     const costRef = doc(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts', costId);
     const accountRef = doc(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'bankAccounts', accountId);
 
@@ -77,6 +79,8 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
 
       const cost = costDoc.data() as MonthlyFixedCost;
       const account = accountDoc.data();
+
+      console.log('payCost transaction cost status:', cost.status);
 
       if (cost.status !== 'pending') throw new Error('Cost is not pending');
       if (account.balance < actualAmount) throw new Error('Insufficient balance');

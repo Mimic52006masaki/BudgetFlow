@@ -13,7 +13,7 @@ import { useTemplates } from './hooks/useTemplates';
 import { useSalaryPeriods } from './hooks/useSalaryPeriods';
 import { useMonthlyCosts } from './hooks/useMonthlyCosts';
 import { useHistory } from './hooks/useHistory';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -86,6 +86,20 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handlePayCost = async (costId: string, actualAmount: number, accountId: string, paidAt: string) => {
+    try {
+      await payCost(costId, actualAmount, accountId, paidAt);
+    } catch (error: any) {
+      if (error.message === 'Cost is not pending') {
+        toast.error('この項目は既に支払済みです');
+      } else if (error.message === 'Insufficient balance') {
+        toast.error('残高が不足しています');
+      } else {
+        toast.error('支払に失敗しました');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -120,7 +134,7 @@ const AppContent: React.FC = () => {
             onUpdateItem={updateItem}
             onStartNewPeriod={() => setModal({ type: 'PERIOD_START' })}
             onClosePeriod={closePeriod}
-            onPayCost={payCost}
+            onPayCost={handlePayCost}
             onCancelPayment={cancelPayment}
             onSkipCost={skipCost}
             onUnskipCost={unskipCost}
@@ -161,7 +175,7 @@ const AppContent: React.FC = () => {
           accounts={accounts}
           onClose={() => setModal(null)}
           onSave={(modal.type === 'ACCOUNT' || modal.type === 'ACCOUNT_EDIT') ? handleSaveAccount : (modal.type === 'TEMPLATE' || modal.type === 'TEMPLATE_EDIT') ? handleSaveTemplate : modal.type === 'ITEM_ADD' ? handleSaveItem : modal.type === 'COST_UPDATE' ? handleUpdatePaymentDate : modal.type === 'PERIOD_START' ? handleStartNewPeriod : undefined}
-          onPayCost={payCost}
+          onPayCost={handlePayCost}
           onDelete={(modal.type === 'ACCOUNT_EDIT') ? handleDeleteAccount : (modal.type === 'TEMPLATE_EDIT') ? handleDeleteTemplate : undefined}
           onDeleteItem={deleteItem}
         />
