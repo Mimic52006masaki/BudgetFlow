@@ -17,9 +17,10 @@ interface DashboardProps {
   onEditCost: (cost: FixedCost) => void;
   onDeleteItem?: (costId: string) => void;
   onUpdateItem?: (costId: string, updates: Partial<MonthlyFixedCost>) => void;
+  onEditPaymentDate?: (cost: MonthlyFixedCost) => void;
   onStartNewPeriod: (startDate: Date, templates: FixedCostTemplate[]) => void;
   onClosePeriod: (summary?: any) => void;
-  onPayCost: (costId: string, actualAmount: number, accountId: string) => void;
+  onPayCost: (costId: string, actualAmount: number, accountId: string, paidAt: string) => void;
   onCancelPayment: (costId: string) => void;
   onSkipCost: (costId: string) => void;
   onUnskipCost: (costId: string) => void;
@@ -40,6 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onEditCost,
   onDeleteItem,
   onUpdateItem,
+  onEditPaymentDate,
   onStartNewPeriod,
   onClosePeriod,
   onPayCost,
@@ -296,7 +298,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="overflow-y-auto custom-scrollbar max-h-[600px]">
               <div className="space-y-3 p-4">
                 {monthlyCosts.map(cost => (
-                  <div key={cost.id} className={`group relative bg-background-element border border-border-subtle p-4 rounded-sm hover:border-primary/50 transition-all active:scale-[0.99] ${cost.status === 'pending' && cost.paymentDate < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
+                  <div key={cost.id} className={`group relative bg-background-element border border-border-subtle p-4 rounded-sm hover:border-primary/50 transition-all active:scale-[0.99] ${cost.status === 'pending' && (cost.paymentDate || new Date()) < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
                         <div className={`size-10 rounded-full bg-gray-100 flex items-center justify-center text-text-sub shrink-0 ${cost.status === 'paid' ? 'bg-accent-success/10 text-accent-success' : cost.status === 'skipped' ? 'bg-neutral-muted/10 text-neutral-muted' : 'bg-primary/10 text-primary group-hover:bg-primary/20'}`}>
@@ -308,7 +310,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           <h4 className={`font-medium text-sm ${cost.status === 'paid' || cost.status === 'skipped' ? 'line-through' : ''}`}>{cost.name}</h4>
                           <p className="text-xs text-text-sub">
                             {(() => {
-                              const date = cost.paymentDate;
+                              const date = cost.paymentDate || new Date();
                               return `${date.getMonth() + 1}月${date.getDate()}日 予定`;
                             })()}
                           </p>
@@ -334,7 +336,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         ) : (
                           <>
                             <button
-                              onClick={() => onEditCost && onEditCost({ id: cost.id, name: cost.name, amount: cost.budget, dueDate: `${cost.paymentDate.getFullYear()}-${String(cost.paymentDate.getMonth() + 1).padStart(2, '0')}-${String(cost.paymentDate.getDate()).padStart(2, '0')}`, bankId: cost.temporaryAccountId || cost.bankAccountId, status: cost.status === 'paid' ? 'PAID' : 'PENDING' } as FixedCost)}
+                              onClick={() => onEditPaymentDate && onEditPaymentDate(cost)}
+                              className="w-8 h-8 rounded-full border border-neutral-muted hover:border-primary hover:bg-primary/10 transition-all flex items-center justify-center"
+                              title="支払日を編集"
+                            >
+                              <span className="material-symbols-outlined text-sm">edit_calendar</span>
+                            </button>
+                            <button
+                              onClick={() => onEditCost && onEditCost({ id: cost.id, name: cost.name, amount: cost.budget, dueDate: `${(cost.paymentDate || new Date()).getFullYear()}-${String((cost.paymentDate || new Date()).getMonth() + 1).padStart(2, '0')}-${String((cost.paymentDate || new Date()).getDate()).padStart(2, '0')}`, bankId: cost.temporaryAccountId || cost.bankAccountId, status: cost.status === 'paid' ? 'PAID' : 'PENDING' } as FixedCost)}
                               className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-colors"
                               title="支払実行"
                             >
@@ -367,7 +376,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         ¥{(cost.actualAmount || cost.budget).toLocaleString()}
                       </div>
                     </div>
-                    {cost.status === 'pending' && cost.paymentDate < new Date() && (
+                    {cost.status === 'pending' && (cost.paymentDate || new Date()) < new Date() && (
                       <div className="mt-2 text-xs text-accent-danger font-medium flex items-center gap-1">
                         <span className="material-symbols-outlined text-sm filled animate-pulse">warning</span>
                         期限超過

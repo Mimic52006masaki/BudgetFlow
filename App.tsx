@@ -26,7 +26,7 @@ const AppContent: React.FC = () => {
   const { monthlyCosts, payCost, cancelPayment, skipCost, unskipCost, addItem, deleteItem, updateItem } = useMonthlyCosts(activePeriod?.id);
   const { records } = useHistory();
   const accounts = firestoreAccounts.length > 0 ? firestoreAccounts : MOCK_ACCOUNTS;
-  const [modal, setModal] = useState<{ type: 'ACCOUNT' | 'ACCOUNT_EDIT' | 'TEMPLATE' | 'TEMPLATE_EDIT' | 'COST_EDIT' | 'ITEM_ADD', cost?: FixedCost, account?: BankAccount, template?: FixedCostTemplate } | null>(null);
+  const [modal, setModal] = useState<{ type: 'ACCOUNT' | 'ACCOUNT_EDIT' | 'TEMPLATE' | 'TEMPLATE_EDIT' | 'COST_EDIT' | 'ITEM_ADD' | 'PERIOD_START', cost?: FixedCost, account?: BankAccount, template?: FixedCostTemplate } | null>(null);
 
   const handleSaveAccount = async (accountData: Omit<BankAccount, 'id' | 'trend'>) => {
     if (modal?.type === 'ACCOUNT_EDIT' && modal.account) {
@@ -75,6 +75,17 @@ const AppContent: React.FC = () => {
     await addItem({ name, amount: typeof amount === 'string' ? 0 : amount, bankAccountId, paymentDate: new Date(paymentDate) });
   };
 
+  const handleStartNewPeriod = async (periodData: any) => {
+    const { startDate } = periodData;
+    await startNewPeriod(new Date(startDate), templates);
+  };
+
+  const handleUpdatePaymentDate = async (data: any) => {
+    if (modal?.cost) {
+      await updateItem(modal.cost.id, { paymentDate: new Date(data.paymentDate) });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -104,9 +115,10 @@ const AppContent: React.FC = () => {
             onDeleteTemplate={handleDeleteTemplateDirect}
             onAddItem={() => setModal({ type: 'ITEM_ADD' })}
             onEditCost={(cost) => setModal({ type: 'COST_EDIT', cost })}
+            onEditPaymentDate={(cost) => setModal({ type: 'COST_UPDATE', cost: { id: cost.id, name: cost.name, amount: cost.budget, dueDate: `${(cost.paymentDate || new Date()).getFullYear()}-${String((cost.paymentDate || new Date()).getMonth() + 1).padStart(2, '0')}-${String((cost.paymentDate || new Date()).getDate()).padStart(2, '0')}`, bankId: cost.temporaryAccountId || cost.bankAccountId, status: cost.status === 'paid' ? 'PAID' : 'PENDING' } as FixedCost })}
             onDeleteItem={deleteItem}
             onUpdateItem={updateItem}
-            onStartNewPeriod={startNewPeriod}
+            onStartNewPeriod={() => setModal({ type: 'PERIOD_START' })}
             onClosePeriod={closePeriod}
             onPayCost={payCost}
             onCancelPayment={cancelPayment}
@@ -148,9 +160,10 @@ const AppContent: React.FC = () => {
           template={modal.template}
           accounts={accounts}
           onClose={() => setModal(null)}
-          onSave={(modal.type === 'ACCOUNT' || modal.type === 'ACCOUNT_EDIT') ? handleSaveAccount : (modal.type === 'TEMPLATE' || modal.type === 'TEMPLATE_EDIT') ? handleSaveTemplate : modal.type === 'ITEM_ADD' ? handleSaveItem : undefined}
+          onSave={(modal.type === 'ACCOUNT' || modal.type === 'ACCOUNT_EDIT') ? handleSaveAccount : (modal.type === 'TEMPLATE' || modal.type === 'TEMPLATE_EDIT') ? handleSaveTemplate : modal.type === 'ITEM_ADD' ? handleSaveItem : modal.type === 'COST_UPDATE' ? handleUpdatePaymentDate : modal.type === 'PERIOD_START' ? handleStartNewPeriod : undefined}
           onPayCost={payCost}
           onDelete={(modal.type === 'ACCOUNT_EDIT') ? handleDeleteAccount : (modal.type === 'TEMPLATE_EDIT') ? handleDeleteTemplate : undefined}
+          onDeleteItem={deleteItem}
         />
       )}
 

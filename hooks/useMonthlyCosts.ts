@@ -5,6 +5,17 @@ import { MonthlyFixedCost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
+const toDateSafe = (value: any): Date | null => {
+  if (!value) return null;
+  if (value.toDate) return value.toDate(); // Firestore Timestamp
+  if (value instanceof Date) return value; // Date 型
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d; // string/number を Date に
+  }
+  return null;
+};
+
 export const useMonthlyCosts = (salaryPeriodId?: string) => {
   const { user } = useAuth();
   const [monthlyCosts, setMonthlyCosts] = useState<MonthlyFixedCost[]>([]);
@@ -23,15 +34,26 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
     const unsubscribe = onSnapshot(costsQuery, (snapshot) => {
       const costsData: MonthlyFixedCost[] = snapshot.docs.map(doc => {
         const data = doc.data();
-        const paymentDate = data.paymentDate?.toDate() || (data.paymentDay ? new Date(new Date().getFullYear(), new Date().getMonth(), data.paymentDay) : new Date());
+
+        const paymentDate = toDateSafe(data.paymentDate);
+        if (!paymentDate) {
+          console.warn('paymentDate is null for doc', doc.id);
+        }
+        const paidAt = toDateSafe(data.paidAt);
+
         return {
           id: doc.id,
           ...data,
           paymentDate,
-          paidAt: data.paidAt?.toDate(),
+          paidAt,
         };
       }) as MonthlyFixedCost[];
-      const sortedCosts = costsData.sort((a, b) => a.paymentDate.getTime() - b.paymentDate.getTime());
+      const sortedCosts = costsData
+        .sort((a, b) => {
+          const dateA = a.paymentDate || a.paidAt || new Date(0);
+          const dateB = b.paymentDate || b.paidAt || new Date(0);
+          return dateA.getTime() - dateB.getTime();
+        });
       console.log('monthlyCosts updated', sortedCosts);
       setMonthlyCosts(sortedCosts);
       setLoading(false);
@@ -40,7 +62,7 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
     return () => unsubscribe();
   }, [user, salaryPeriodId]);
 
-  const payCost = async (costId: string, actualAmount: number, accountId: string) => {
+  const payCost = async (costId: string, actualAmount: number, accountId: string, paidAt: string) => {
     if (!user) return;
 
     const costRef = doc(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts', costId);
@@ -62,7 +84,7 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
       const updateData: any = {
         status: 'paid',
         actualAmount,
-        paidAt: new Date(),
+        paidAt: new Date(paidAt),
       };
       if (accountId !== cost.bankAccountId) {
         updateData.temporaryAccountId = accountId;
@@ -143,7 +165,18 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
     if (!user) return;
 
     const costRef = doc(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts', costId);
-    await updateDoc(costRef, updates);
+
+    const finalUpdates: any = { ...updates };
+
+    // Firestore に Date を保存する場合、Timestamp に変換する必要は基本なし
+    if ('paymentDate' in updates && updates.paymentDate instanceof Date) {
+      finalUpdates.paymentDate = updates.paymentDate;
+    }
+
+    // paymentDay の null リセットは必要ないなら削除
+    // if ('paymentDate' in updates) finalUpdates.paymentDay = null;
+
+    await updateDoc(costRef, finalUpdates);
   };
 
   const addItem = async (itemData: { name: string; amount: number; bankAccountId: string; paymentDate: Date }) => {

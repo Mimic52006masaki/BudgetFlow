@@ -4,15 +4,17 @@ import { FixedCost, BankAccount, FixedCostTemplate } from '../types';
 import { NumberInput } from './NumberInput';
 
 interface ModalProps {
-  type: 'ACCOUNT' | 'ACCOUNT_EDIT' | 'COST_EDIT' | 'ITEM_ADD' | 'TEMPLATE' | 'TEMPLATE_EDIT';
+  type: 'ACCOUNT' | 'ACCOUNT_EDIT' | 'COST_EDIT' | 'COST_UPDATE' | 'ITEM_ADD' | 'TEMPLATE' | 'TEMPLATE_EDIT' | 'PERIOD_START';
   cost?: FixedCost;
   account?: BankAccount;
   template?: FixedCostTemplate;
   accounts?: BankAccount[];
   onClose: () => void;
   onSave?: (data: any) => void;
-  onPayCost?: (costId: string, amount: number, accountId: string) => void;
+  onPayCost?: (costId: string, amount: number, accountId: string, paidAt: string) => void;
   onDelete?: (action: 'check' | 'delete', accountId: string) => Promise<any>;
+  onDeleteItem?: (costId: string) => void;
+  onUpdateItem?: (costId: string, updates: Partial<import('../types').MonthlyFixedCost>) => void;
 }
 
 const BANK_ICONS = ['account_balance', 'credit_card', 'savings', 'wallet', 'account_balance_wallet', 'credit_score'];
@@ -25,7 +27,7 @@ const COLORS = [
   { name: 'Orange', class: 'bg-accent-orange', value: 'bg-accent-orange' },
 ];
 
-export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, accounts = [], onClose, onSave, onPayCost, onDelete }) => {
+export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, accounts = [], onClose, onSave, onPayCost, onDelete, onDeleteItem, onUpdateItem }) => {
   const [formData, setFormData] = useState({
     name: account?.name || template?.name || '',
     balance: account?.balance || 0,
@@ -34,7 +36,8 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
     defaultBudget: template?.defaultBudget || '',
     bankAccountId: template?.bankAccountId || accounts[0]?.id || '',
     paymentDay: template?.paymentDay || 1,
-    paymentDate: type === 'ITEM_ADD' ? new Date().toISOString().split('T')[0] : (template?.paymentDay ? new Date(new Date().getFullYear(), new Date().getMonth(), template.paymentDay).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+    paymentDate: type === 'COST_UPDATE' ? (cost?.dueDate || new Date().toISOString().split('T')[0]) : (type === 'ITEM_ADD' ? new Date().toISOString().split('T')[0] : (template?.paymentDay ? new Date(new Date().getFullYear(), new Date().getMonth(), template.paymentDay).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])),
+    startDate: new Date().toISOString().split('T')[0],
     amount: cost?.amount || '',
     paymentAccountId: cost?.bankId || accounts[0]?.id || ''
   });
@@ -43,7 +46,9 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
 
   const handleSave = () => {
     if (type === 'COST_EDIT' && onPayCost && cost) {
-      onPayCost(cost.id, typeof formData.amount === 'string' ? 0 : formData.amount, formData.paymentAccountId);
+      onPayCost(cost.id, typeof formData.amount === 'string' ? 0 : formData.amount, formData.paymentAccountId, formData.paymentDate);
+    } else if (type === 'COST_UPDATE' && onUpdateItem && cost) {
+      onUpdateItem(cost.id, { paymentDate: new Date(formData.paymentDate) });
     } else if (onSave) {
       const saveData = {
         ...formData,
@@ -68,6 +73,12 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
     onClose();
   };
 
+  const handleDeleteItem = () => {
+    if (!cost || !onDeleteItem) return;
+    onDeleteItem(cost.id);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-neutral-light/20 backdrop-blur-sm" onClick={onClose}></div>
@@ -78,9 +89,9 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
         <div className="flex items-center justify-between p-6 border-b border-border-subtle bg-background-panel">
           <h3 className="text-lg font-bold text-neutral-light tracking-wider uppercase flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">
-              {type === 'ACCOUNT' || type === 'ACCOUNT_EDIT' ? 'add_card' : type === 'TEMPLATE' || type === 'TEMPLATE_EDIT' ? 'description' : type === 'COST_EDIT' ? 'edit' : 'add'}
+              {type === 'ACCOUNT' || type === 'ACCOUNT_EDIT' ? 'add_card' : type === 'TEMPLATE' || type === 'TEMPLATE_EDIT' ? 'description' : type === 'COST_EDIT' || type === 'COST_UPDATE' ? 'edit' : 'add'}
             </span>
-            {type === 'ACCOUNT' ? '口座を追加' : type === 'ACCOUNT_EDIT' ? '口座を編集' : type === 'TEMPLATE' ? 'テンプレートを追加' : type === 'TEMPLATE_EDIT' ? 'テンプレートを編集' : type === 'COST_EDIT' ? '支払い情報の編集' : '新しい項目の追加'}
+            {type === 'ACCOUNT' ? '口座を追加' : type === 'ACCOUNT_EDIT' ? '口座を編集' : type === 'TEMPLATE' ? 'テンプレートを追加' : type === 'TEMPLATE_EDIT' ? 'テンプレートを編集' : type === 'COST_EDIT' ? '支払い情報の編集' : type === 'COST_UPDATE' ? '支払予定日の編集' : type === 'PERIOD_START' ? '期間を開始' : '新しい項目の追加'}
           </h3>
           <button onClick={onClose} className="text-neutral-muted hover:text-accent-danger transition-colors p-1">
             <span className="material-symbols-outlined">close</span>
@@ -97,22 +108,34 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
             </div>
           )}
 
+          {type === 'COST_UPDATE' && (
+            <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-sm flex items-start gap-3">
+              <span className="material-symbols-outlined text-blue-500 mt-0.5">edit</span>
+              <p className="text-xs text-neutral-muted leading-relaxed">
+                支払予定日を変更します。
+              </p>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-neutral-muted uppercase tracking-wider block">
                 {(type === 'ACCOUNT' || type === 'ACCOUNT_EDIT') ? '口座名称' : (type === 'ITEM_ADD') ? '項目名称' : 'テンプレート名称'}
               </label>
-              <input
-                className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light focus:border-primary focus:ring-1 focus:ring-primary outline-none rounded-sm transition-all"
-                placeholder={(type === 'ACCOUNT' || type === 'ACCOUNT_EDIT') ? '例: メインバンク' : (type === 'ITEM_ADD') ? '例: コーヒー代' : '例: Netflix, 家賃'}
-                value={(type === 'ACCOUNT' || type === 'ACCOUNT_EDIT' || type === 'TEMPLATE' || type === 'TEMPLATE_EDIT' || type === 'ITEM_ADD') ? formData.name : (cost?.name || '')}
-                onChange={(e) => {
-                  if (type === 'ACCOUNT' || type === 'ACCOUNT_EDIT' || type === 'TEMPLATE' || type === 'TEMPLATE_EDIT' || type === 'ITEM_ADD') {
-                    setFormData(prev => ({ ...prev, name: e.target.value }));
-                  }
-                }}
-                defaultValue={(type !== 'ACCOUNT' && type !== 'ACCOUNT_EDIT' && type !== 'TEMPLATE' && type !== 'TEMPLATE_EDIT' && type !== 'ITEM_ADD') ? (cost?.name || '') : undefined}
-              />
+              {type === 'ACCOUNT' || type === 'ACCOUNT_EDIT' || type === 'TEMPLATE' || type === 'TEMPLATE_EDIT' || type === 'ITEM_ADD' ? (
+                <input
+                  className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light focus:border-primary focus:ring-1 focus:ring-primary outline-none rounded-sm transition-all"
+                  placeholder={(type === 'ACCOUNT' || type === 'ACCOUNT_EDIT') ? '例: メインバンク' : (type === 'ITEM_ADD') ? '例: コーヒー代' : '例: Netflix, 家賃'}
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                />
+              ) : (
+                <input
+                  className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light outline-none rounded-sm transition-all cursor-not-allowed"
+                  value={cost?.name || ''}
+                  readOnly
+                />
+              )}
             </div>
 
             {(type === 'TEMPLATE' || type === 'TEMPLATE_EDIT') && (
@@ -239,8 +262,21 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
                 <label className="text-xs font-bold text-neutral-muted uppercase tracking-wider block">日付</label>
                 <input
                   type="date"
-                  className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light font-mono outline-none rounded-sm focus:border-primary"
-                  value={cost?.dueDate || ''}
+                  className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light font-mono outline-none rounded-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                  value={formData.paymentDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
+                />
+              </div>
+            )}
+
+            {type === 'COST_UPDATE' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-neutral-muted uppercase tracking-wider block">支払予定日</label>
+                <input
+                  type="date"
+                  className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light font-mono outline-none rounded-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                  value={formData.paymentDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
                 />
               </div>
             )}
@@ -271,6 +307,12 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
           )}
           {type === 'ACCOUNT_EDIT' && onDelete && (
             <button onClick={handleDeleteClick} className="px-6 py-2.5 border border-accent-danger text-accent-danger text-xs font-bold uppercase tracking-wider hover:bg-accent-danger/10 rounded-sm flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">delete</span>
+              削除
+            </button>
+          )}
+          {type === 'COST_EDIT' && onDeleteItem && (
+            <button onClick={handleDeleteItem} className="px-6 py-2.5 border border-accent-danger text-accent-danger text-xs font-bold uppercase tracking-wider hover:bg-accent-danger/10 rounded-sm flex items-center gap-2">
               <span className="material-symbols-outlined text-sm">delete</span>
               削除
             </button>
