@@ -82,7 +82,7 @@ const AppContent: React.FC = () => {
 
   const handleUpdatePaymentDate = async (data: any) => {
     if (modal?.cost) {
-      await updateItem(modal.cost.id, { paymentDate: new Date(data.paymentDate) });
+      await updateItem(modal.cost.id, { paymentDate: new Date(data.paymentDate), budget: data.amount });
     }
   };
 

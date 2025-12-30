@@ -44,16 +44,23 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCheck, setDeleteCheck] = useState<{ canDelete: boolean; reason?: string } | null>(null);
 
+  const parseAmount = (value: string | number) => {
+    const num = typeof value === 'string'
+      ? Number(value.replace(/,/g, ''))
+      : value;
+    return isNaN(num) ? 0 : num;
+  };
+
   const handleSave = () => {
     if (type === 'COST_EDIT' && onPayCost && cost) {
-      onPayCost(cost.id, typeof formData.amount === 'string' ? 0 : formData.amount, formData.paymentAccountId, formData.paymentDate);
+      onPayCost(cost.id, parseAmount(formData.amount), formData.paymentAccountId, formData.paymentDate);
     } else if (type === 'COST_UPDATE' && onUpdateItem && cost) {
-      onUpdateItem(cost.id, { paymentDate: new Date(formData.paymentDate) });
+      onUpdateItem(cost.id, { paymentDate: new Date(formData.paymentDate), budget: parseAmount(formData.amount) });
     } else if (onSave) {
       const saveData = {
         ...formData,
-        defaultBudget: typeof formData.defaultBudget === 'string' ? 0 : formData.defaultBudget,
-        amount: typeof formData.amount === 'string' ? 0 : formData.amount
+        defaultBudget: parseAmount(formData.defaultBudget),
+        amount: parseAmount(formData.amount)
       };
       onSave(saveData);
     }
@@ -270,15 +277,26 @@ export const Modal: React.FC<ModalProps> = ({ type, cost, account, template, acc
             )}
 
             {type === 'COST_UPDATE' && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-neutral-muted uppercase tracking-wider block">支払予定日</label>
-                <input
-                  type="date"
-                  className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light font-mono outline-none rounded-sm focus:border-primary focus:ring-1 focus:ring-primary"
-                  value={formData.paymentDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
-                />
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-neutral-muted uppercase tracking-wider block">金額</label>
+                  <NumberInput
+                    value={formData.amount}
+                    onChange={(value) => setFormData(prev => ({ ...prev, amount: value }))}
+                    className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light font-mono text-right outline-none rounded-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                    prefix="¥"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-neutral-muted uppercase tracking-wider block">支払予定日</label>
+                  <input
+                    type="date"
+                    className="w-full bg-background-element border border-border-subtle p-3 text-sm text-neutral-light font-mono outline-none rounded-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                    value={formData.paymentDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, paymentDate: e.target.value }))}
+                  />
+                </div>
+              </>
             )}
             {type === 'ITEM_ADD' && (
               <div className="space-y-1.5">
