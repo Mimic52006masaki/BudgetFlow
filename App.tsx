@@ -189,7 +189,7 @@ const AppContent: React.FC = () => {
           <span>•</span>
           <a href="#" className="hover:text-primary transition-colors">Help</a>
           <span>•</span>
-          <span>© 2023 BudgetFlow CMD v1.0.4</span>
+          <span>© 2026 BudgetFlow CMD v1.0.4</span>
         </div>
       </footer>
       <ToastContainer aria-label="通知" />
