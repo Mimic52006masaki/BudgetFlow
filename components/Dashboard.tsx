@@ -51,10 +51,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [editingField, setEditingField] = useState<{ costId: string; field: 'paymentDay' | 'budget' | 'bankAccountId' } | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'unpaid' | 'paid'>('unpaid');
   const totalAssets = accounts.reduce((acc, curr) => acc + curr.balance, 0);
   const paidAmount = monthlyCosts.filter(c => c.status === 'paid').reduce((acc, curr) => acc + (curr.actualAmount || 0), 0);
   const totalBudget = monthlyCosts.reduce((acc, curr) => acc + curr.budget, 0);
   const progressPercent = totalBudget > 0 ? Math.round((paidAmount / totalBudget) * 100) : 0;
+  const filteredCosts = activeTab === 'paid' ? monthlyCosts.filter(c => c.status === 'paid') : monthlyCosts.filter(c => c.status !== 'paid');
 
   return (
     <div className="flex flex-col gap-6">
@@ -294,10 +296,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span className="material-symbols-outlined text-sm">add</span> 項目を追加
               </button>
             </div>
+            <div className="px-6 py-3 border-b border-border-subtle bg-background-panel/30">
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setActiveTab('unpaid')}
+                  className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-sm transition-all ${activeTab === 'unpaid' ? 'bg-primary text-white' : 'text-neutral-muted hover:text-primary hover:bg-primary/10'}`}
+                >
+                  未払い ({monthlyCosts.filter(c => c.status !== 'paid').length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('paid')}
+                  className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-sm transition-all ${activeTab === 'paid' ? 'bg-primary text-white' : 'text-neutral-muted hover:text-primary hover:bg-primary/10'}`}
+                >
+                  支払い済み ({monthlyCosts.filter(c => c.status === 'paid').length})
+                </button>
+              </div>
+            </div>
             
             <div className="overflow-y-auto custom-scrollbar max-h-[600px]">
               <div className="space-y-3 p-4">
-                {monthlyCosts.map(cost => (
+                {filteredCosts.map(cost => (
                   <div key={cost.id} className={`group relative bg-background-element border border-border-subtle p-4 rounded-sm hover:border-primary/50 transition-all active:scale-[0.99] ${cost.status === 'pending' && (cost.paymentDate || new Date()) < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
