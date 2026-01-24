@@ -78,17 +78,21 @@ export const useSalaryPeriods = () => {
     const paidCostsSnap = await getDocs(
       query(
         costsRef,
-        where('periodId', '==', activePeriod.id),
+        where('salaryPeriodId', '==', activePeriod.id),
         where('status', '==', 'paid')
       )
     );
     const paidItems = paidCostsSnap.docs.map(d => {
-      const data = d.data();
+      const data = d.data() as MonthlyFixedCost; // Cast to MonthlyFixedCost for type safety
       return {
+        id: d.id, // Add id
         name: data.name,
-        amount: data.actualAmount ?? 0,
-        paidAt: data.paidAt?.toDate?.() ?? data.paidAt,
+        amount: data.actualAmount ?? data.budget ?? 0,
+        budget: data.budget, // Add budget
         bankAccountId: data.temporaryAccountId || data.bankAccountId,
+        status: data.status, // Add status
+        paidAt: data.paidAt?.toDate?.() ?? data.paidAt,
+        salaryPeriodId: data.salaryPeriodId, // Add salaryPeriodId
       };
     });
 
@@ -105,7 +109,7 @@ export const useSalaryPeriods = () => {
 
     /* ---- ③ Delete all of this month's costs ---- */
     const allCostsSnap = await getDocs(
-      query(costsRef, where('periodId', '==', activePeriod.id))
+      query(costsRef, where('salaryPeriodId', '==', activePeriod.id))
     );
     allCostsSnap.forEach(d => batch.delete(d.ref));
 
@@ -135,7 +139,7 @@ export const useSalaryPeriods = () => {
         paymentDate: new Date(y, m, t.paymentDay),
         order: t.order ?? i,
         status: 'pending',
-        periodId: nextPeriodRef.id,
+        salaryPeriodId: nextPeriodRef.id,
       });
     });
 
