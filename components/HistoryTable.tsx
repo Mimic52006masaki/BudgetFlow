@@ -1,6 +1,9 @@
 
-import React from 'react';
-import { MonthlySummary, BankAccount } from '../types';
+import React, { useState, useMemo } from 'react';
+import { MonthlySummary, BankAccount, ChartPoint } from '../types';
+import { HistoryDetailModal } from './HistoryDetailModal';
+import { buildMonthlyChartData } from '../utils/analytics';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface HistoryTableProps {
   records: MonthlySummary[];
@@ -8,8 +11,9 @@ interface HistoryTableProps {
 }
 
 export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts }) => {
-  // TODO: Chart data needs to be recalculated based on MonthlySummary
-  // const chartData = getLast6MonthsData(records).reverse(); 
+  const [selectedSummary, setSelectedSummary] = useState<MonthlySummary | null>(null);
+
+  const chartData = useMemo(() => buildMonthlyChartData(records), [records]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,8 +47,45 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
         </div>
       </div>
 
-      {/* TODO: Re-implement chart with new data structure */}
-      {/* <div className="hud-panel rounded-sm p-6"> ... </div> */}
+      {/* Expense Trend Chart */}
+      <div className="hud-panel rounded-sm p-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-1 h-6 bg-accent-cyan"></div>
+          <div>
+            <h3 className="text-xl font-bold text-neutral-light tracking-wide uppercase">支出推移</h3>
+            <p className="text-[10px] text-neutral-muted font-mono uppercase tracking-widest font-bold">直近6ヶ月の推移</p>
+          </div>
+        </div>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis dataKey="label" stroke="#999" />
+              <YAxis stroke="#999" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid #333',
+                  borderRadius: '4px',
+                }}
+                formatter={(value: any) => [`¥${value.toLocaleString()}`, '合計支出']}
+              />
+              <Line
+                type="monotone"
+                dataKey="totalPaid"
+                stroke="#00d4aa"
+                strokeWidth={2}
+                dot={({ cx, cy, stroke, payload }) => {
+                  if (payload.hasNoItems) {
+                    return <circle cx={cx} cy={cy} r={5} fill="#ffcc00" stroke="#ffcc00" strokeWidth={2} />;
+                  }
+                  return <circle cx={cx} cy={cy} r={4} fill="#00d4aa" stroke="#00d4aa" strokeWidth={2} />;
+                }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
       <div className="hud-panel rounded-sm border border-border-subtle flex flex-col overflow-hidden bg-background-panel">
         <div className="overflow-x-auto custom-scrollbar">
@@ -58,24 +99,40 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-sm">
-              {records.map(r => (
-                <tr key={r.id} className="hover:bg-background-element transition-colors">
-                  <td className="py-4 px-4 font-mono font-bold text-neutral-light">
-                    {r.year}/{String(r.month).padStart(2, '0')}
-                  </td>
-                  <td className="py-4 px-4 font-mono font-bold text-neutral-light text-right">
-                    ¥{(r.totalPaid ?? 0).toLocaleString()}
-                  </td>
-                  <td className="py-4 px-4 font-mono text-neutral-muted text-right">
-                    {(r.items?.length ?? 0)} 件
-                  </td>
-                  <td className="py-4 px-4 text-center">
-                    <button className="text-primary hover:text-primary-dark transition-colors">
-                      <span className="material-symbols-outlined text-lg">open_in_new</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {records.map(r => {
+                const hasNoItems = !r.items || r.items.length === 0;
+                return (
+                  <tr key={r.id} className="hover:bg-background-element transition-colors">
+                    <td className="py-4 px-4 font-mono font-bold text-neutral-light">
+                      <div className="flex items-center gap-2">
+                        {r.year}/{String(r.month).padStart(2, '0')}
+                        {hasNoItems && (
+                          <span
+                            title="項目が保存されていません"
+                            className="text-yellow-500 ml-2"
+                          >
+                            ⚠
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 font-mono font-bold text-neutral-light text-right">
+                      ¥{(r.totalPaid ?? 0).toLocaleString()}
+                    </td>
+                    <td className="py-4 px-4 font-mono text-neutral-muted text-right">
+                      {(r.items?.length ?? 0)} 件
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <button
+                        onClick={() => setSelectedSummary(r)}
+                        className="text-primary hover:text-primary-dark transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-lg">open_in_new</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -86,6 +143,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
           </div>
         )}
       </div>
+
+      {selectedSummary && (
+        <HistoryDetailModal
+          summary={selectedSummary}
+          onClose={() => setSelectedSummary(null)}
+        />
+      )}
     </div>
   );
 };

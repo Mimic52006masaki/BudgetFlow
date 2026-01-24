@@ -91,3 +91,13 @@ export interface MonthlySummary {
   }[];
   createdAt: Date;
 }
+
+export type ChartPoint = {
+  key: string; // "YYYY/MM" 形式のユニークキー
+  label: string; // "MM月" または "YYYY/MM" (X軸表示用)
+  year: number;
+  month: number; // 1-indexed
+  totalPaid: number;
+  hasNoItems: boolean; // items が存在しない or 欠損補完月
+  isForecast?: boolean;
+};
