@@ -64,10 +64,10 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
                     {r.year}/{String(r.month).padStart(2, '0')}
                   </td>
                   <td className="py-4 px-4 font-mono font-bold text-neutral-light text-right">
-                    ¥{r.totalPaid.toLocaleString()}
+                    ¥{(r.totalPaid ?? 0).toLocaleString()}
                   </td>
                   <td className="py-4 px-4 font-mono text-neutral-muted text-right">
-                    {r.items.length} 件
+                    {(r.items?.length ?? 0)} 件
                   </td>
                   <td className="py-4 px-4 text-center">
                     <button className="text-primary hover:text-primary-dark transition-colors">

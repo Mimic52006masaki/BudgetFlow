@@ -29,10 +29,22 @@ export const useHistory = () => {
     const q = query(ref, orderBy('createdAt', 'desc'));
 
     const unsub = onSnapshot(q, snap => {
-      const data = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as MonthlySummary[];
+      const data: MonthlySummary[] = snap.docs.map(doc => {
+        const docData = doc.data();
+        return {
+          id: doc.id,
+          year: docData.year,
+          month: docData.month,
+          totalPaid: docData.totalPaid ?? 0, // Ensure totalPaid is always a number
+          items: Array.isArray(docData.items)
+            ? docData.items.map((item: any) => ({
+                ...item,
+                paidAt: item.paidAt?.toDate?.() ?? item.paidAt, // Convert Timestamp to Date
+              }))
+            : [], // Ensure items is always an array
+          createdAt: docData.createdAt?.toDate?.() ?? docData.createdAt, // Convert Timestamp to Date
+        };
+      });
 
       console.log('history loaded', data); // ← 必ず入れる
       setRecords(data);
