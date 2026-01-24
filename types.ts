@@ -76,3 +76,19 @@ export interface FixedCostRecord {
   paidAt: Date;
   salaryPeriodId: string;
 }
+
+export interface MonthlySummary {
+  id: string;
+  salaryPeriodId: string;
+  month: string;
+  startDate: Date;
+  endDate: Date;
+  totalAmount: number;
+  items: {
+    name: string;
+    amount: number;
+    paidAt: Date;
+    bankAccountId: string;
+  }[];
+  createdAt: Date;
+}

@@ -1,15 +1,30 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, doc, updateDoc, query, where, orderBy, runTransaction, writeBatch, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  doc,
+  writeBatch,
+  where,
+  getDocs,
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import { SalaryPeriod, MonthlyFixedCost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
+const formatMonth = (date: Date) =>
+  `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+
 export const useSalaryPeriods = () => {
   const { user } = useAuth();
   const [salaryPeriods, setSalaryPeriods] = useState<SalaryPeriod[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activePeriod, setActivePeriod] = useState<SalaryPeriod | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  /* =========================
+     Period listener
+  ========================= */
   useEffect(() => {
     if (!user) {
       setSalaryPeriods([]);
@@ -18,109 +33,131 @@ export const useSalaryPeriods = () => {
       return;
     }
 
-    const periodsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'salaryPeriods');
-    const periodsQuery = query(periodsRef, orderBy('startDate', 'desc'));
+    const ref = collection(
+      db,
+      'artifacts',
+      'kakeibo-app-v2',
+      'users',
+      user.uid,
+      'salaryPeriods'
+    );
 
-    const unsubscribe = onSnapshot(periodsQuery, (snapshot) => {
-      const periodsData: SalaryPeriod[] = snapshot.docs.map(doc => ({
+    const q = query(ref, orderBy('startDate', 'desc'));
+
+    const unsub = onSnapshot(q, snap => {
+      const periods = snap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         startDate: doc.data().startDate.toDate(),
         endDate: doc.data().endDate?.toDate(),
       })) as SalaryPeriod[];
-      setSalaryPeriods(periodsData);
-      const active = periodsData.find(p => p.status === 'active') || null;
-      setActivePeriod(active);
+
+      setSalaryPeriods(periods);
+      setActivePeriod(periods.find(p => p.status === 'active') ?? null);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, [user]);
 
-  const startNewPeriod = async (startDate: Date, templates: any[]) => {
-    if (!user) return;
-
-    const batch = writeBatch(db);
-    const periodRef = doc(collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'salaryPeriods'));
-    const costsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts');
-
-    // Close previous active period if exists
-    if (activePeriod) {
-      const prevPeriodRef = doc(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'salaryPeriods', activePeriod.id);
-      batch.update(prevPeriodRef, { status: 'closed', endDate: startDate });
-    }
-
-    // Create new period
-    const newPeriod = {
-      startDate,
-      status: 'active',
-    };
-    batch.set(periodRef, newPeriod);
-
-    // Generate monthly costs from templates
-    const currentYear = startDate.getFullYear();
-    const currentMonth = startDate.getMonth();
-    const costs: Omit<MonthlyFixedCost, 'id'>[] = templates.map((template, index) => ({
-      name: template.name,
-      budget: template.defaultBudget,
-      bankAccountId: template.bankAccountId,
-      paymentDate: new Date(currentYear, currentMonth, template.paymentDay),
-      order: template.order || index,
-      status: 'pending',
-      salaryPeriodId: periodRef.id,
-    }));
-
-    costs.forEach(cost => {
-      const costRef = doc(costsRef);
-      batch.set(costRef, cost);
-    });
-
-    await batch.commit();
-  };
-
-  const closePeriod = async (summary?: any) => {
+  /* =========================
+     Close → Start next period
+  ========================= */
+  const closeAndStartNextPeriod = async (
+    nextStartDate: Date,
+    templates: any[]
+  ) => {
     if (!user || !activePeriod) return;
 
     const batch = writeBatch(db);
-    const periodRef = doc(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'salaryPeriods', activePeriod.id);
-    const costsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts');
-    const recordsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'fixedCostRecords');
 
-    const costsQuery = query(costsRef, where('salaryPeriodId', '==', activePeriod.id));
-    const costsSnapshot = await getDocs(costsQuery);
+    const basePath = [
+      'artifacts',
+      'kakeibo-app-v2',
+      'users',
+      user.uid,
+    ];
 
-    const costs = costsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MonthlyFixedCost[];
+    const periodsRef = collection(db, ...basePath, 'salaryPeriods');
+    const costsRef = collection(db, ...basePath, 'monthlyFixedCosts');
+    const summariesRef = collection(db, ...basePath, 'monthlySummaries');
 
-    // Archive costs to records
-    costs.forEach(cost => {
-      const record = {
-        name: cost.name,
-        amount: cost.actualAmount || 0,
-        budget: cost.budget,
-        bankAccountId: cost.temporaryAccountId || cost.bankAccountId,
-        status: cost.status === 'paid' ? 'paid' : cost.status === 'skipped' ? 'skipped' : 'unpaid',
-        paidAt: cost.paidAt || new Date(),
-        salaryPeriodId: cost.salaryPeriodId,
-        isArchivedItem: true,
-      };
-      const recordRef = doc(recordsRef);
-      batch.set(recordRef, record);
+    /* ---- ① paid costs ---- */
+    const paidSnap = await getDocs(
+      query(
+        costsRef,
+        where('salaryPeriodId', '==', activePeriod.id),
+        where('status', '==', 'paid')
+      )
+    );
+
+    const paidCosts = paidSnap.docs.map(
+      d => ({ id: d.id, ...d.data() } as MonthlyFixedCost)
+    );
+
+    /* ---- ② monthly summary ---- */
+    const totalAmount = paidCosts.reduce(
+      (sum, c) => sum + (c.actualAmount ?? 0),
+      0
+    );
+
+    batch.set(doc(summariesRef), {
+      salaryPeriodId: activePeriod.id,
+      month: formatMonth(activePeriod.startDate),
+      startDate: activePeriod.startDate,
+      endDate: nextStartDate,
+      totalAmount,
+      items: paidCosts.map(c => ({
+        name: c.name,
+        amount: c.actualAmount,
+        paidAt: c.paidAt,
+        bankAccountId: c.temporaryAccountId || c.bankAccountId,
+      })),
+      createdAt: new Date(),
     });
 
-    // Delete monthly costs
-    costsSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
+    /* ---- ③ delete this month costs ---- */
+    const allSnap = await getDocs(
+      query(costsRef, where('salaryPeriodId', '==', activePeriod.id))
+    );
+    allSnap.forEach(d => batch.delete(d.ref));
 
-    // Update period
-    batch.update(periodRef, {
+    /* ---- ④ close current period ---- */
+    batch.update(doc(periodsRef, activePeriod.id), {
       status: 'closed',
-      endDate: new Date(),
-      lastSummary: summary,
+      endDate: nextStartDate,
+    });
+
+    /* ---- ⑤ create next period ---- */
+    const nextPeriodRef = doc(periodsRef);
+    batch.set(nextPeriodRef, {
+      startDate: nextStartDate,
+      status: 'active',
+    });
+
+    /* ---- ⑥ generate next month costs ---- */
+    const y = nextStartDate.getFullYear();
+    const m = nextStartDate.getMonth();
+
+    templates.forEach((t: any, i: number) => {
+      batch.set(doc(costsRef), {
+        name: t.name,
+        budget: t.defaultBudget,
+        bankAccountId: t.bankAccountId,
+        paymentDate: new Date(y, m, t.paymentDay),
+        order: t.order ?? i,
+        status: 'pending',
+        salaryPeriodId: nextPeriodRef.id,
+      });
     });
 
     await batch.commit();
   };
 
-  return { salaryPeriods, activePeriod, loading, startNewPeriod, closePeriod };
+  return {
+    salaryPeriods,
+    activePeriod,
+    loading,
+    closeAndStartNextPeriod,
+  };
 };
