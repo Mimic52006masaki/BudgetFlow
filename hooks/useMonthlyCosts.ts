@@ -16,20 +16,20 @@ const toDateSafe = (value: any): Date | null => {
   return null;
 };
 
-export const useMonthlyCosts = (salaryPeriodId?: string) => {
+export const useMonthlyCosts = (periodId?: string) => {
   const { user } = useAuth();
   const [monthlyCosts, setMonthlyCosts] = useState<MonthlyFixedCost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !salaryPeriodId) {
+    if (!user || !periodId) {
       setMonthlyCosts([]);
       setLoading(false);
       return;
     }
 
     const costsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts');
-    const costsQuery = query(costsRef, where('salaryPeriodId', '==', salaryPeriodId));
+    const costsQuery = query(costsRef, where('periodId', '==', periodId));
 
     const unsubscribe = onSnapshot(costsQuery, (snapshot) => {
       const costsData: MonthlyFixedCost[] = snapshot.docs.map(doc => {
@@ -58,7 +58,7 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
     });
 
     return () => unsubscribe();
-  }, [user, salaryPeriodId]);
+  }, [user, periodId]);
 
   const payCost = async (costId: string, actualAmount: number, accountId: string, paidAt: string | Date) => {
     if (!user) return;
@@ -185,9 +185,9 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
   };
 
   const addItem = async (itemData: { name: string; amount: number; bankAccountId: string; paymentDate: Date }) => {
-    console.log('addItem called', itemData, salaryPeriodId);
+    console.log('addItem called', itemData, periodId);
     if (!user) return;
-    if (!salaryPeriodId) {
+    if (!periodId) {
       toast.error('月を開始してから項目を追加してください');
       return;
     }
@@ -201,7 +201,7 @@ export const useMonthlyCosts = (salaryPeriodId?: string) => {
         paymentDate: itemData.paymentDate,
         order: monthlyCosts.length,
         status: 'pending',
-        salaryPeriodId,
+        periodId,
       });
       console.log('addDoc success');
       toast.success('項目を追加しました');

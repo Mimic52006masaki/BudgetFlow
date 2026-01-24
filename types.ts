@@ -16,7 +16,7 @@ export interface BankAccount {
 }
 
 export interface FixedCost {
-  id: string;
+  id:string;
   name: string;
   amount: number;
   dueDate: string;
@@ -54,7 +54,7 @@ export interface MonthlyFixedCost {
   status: 'pending' | 'paid' | 'skipped';
   paidAt?: Date;
   actualAmount?: number;
-  salaryPeriodId: string;
+  periodId: string;
 }
 
 export interface SalaryPeriod {
@@ -74,16 +74,15 @@ export interface FixedCostRecord {
   status: 'paid' | 'skipped' | 'unpaid';
   isArchivedItem: boolean;
   paidAt: Date;
-  salaryPeriodId: string;
+  periodId: string;
 }
 
 export interface MonthlySummary {
   id: string;
-  salaryPeriodId: string;
-  month: string;
-  startDate: Date;
-  endDate: Date;
-  totalAmount: number;
+  periodId: string;
+  year: number;
+  month: number;
+  totalPaid: number;
   items: {
     name: string;
     amount: number;
