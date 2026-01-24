@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+// hooks/useHistory.ts
+import { useEffect, useState } from 'react';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { FixedCostRecord } from '../types';
+import { MonthlySummary } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
-export const useHistory = (limitCount: number = 50) => {
+export const useHistory = () => {
   const { user } = useAuth();
-  const [records, setRecords] = useState<FixedCostRecord[]>([]);
+  const [records, setRecords] = useState<MonthlySummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,21 +17,30 @@ export const useHistory = (limitCount: number = 50) => {
       return;
     }
 
-    const recordsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'fixedCostRecords');
-    const recordsQuery = query(recordsRef, orderBy('paidAt', 'desc'), limit(limitCount));
+    const ref = collection(
+      db,
+      'artifacts',
+      'kakeibo-app-v2',
+      'users',
+      user.uid,
+      'monthlySummaries'
+    );
 
-    const unsubscribe = onSnapshot(recordsQuery, (snapshot) => {
-      const recordsData: FixedCostRecord[] = snapshot.docs.map(doc => ({
+    const q = query(ref, orderBy('createdAt', 'desc'));
+
+    const unsub = onSnapshot(q, snap => {
+      const data = snap.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        paidAt: doc.data().paidAt?.toDate() || new Date(),
-      })) as FixedCostRecord[];
-      setRecords(recordsData);
+      })) as MonthlySummary[];
+
+      console.log('history loaded', data); // ← 必ず入れる
+      setRecords(data);
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [user, limitCount]);
+    return () => unsub();
+  }, [user]);
 
   return { records, loading };
 };
