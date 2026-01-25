@@ -1,19 +1,73 @@
-import { useState, useMemo } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
-import { useAuth } from '../contexts/AuthContext';
+import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'react-toastify';
 
-export const PastSummaryForm = () => {
-  const now = new Date();
-  const { user } = useAuth();
+// Define PastItem type locally for the form state
+type PastItem = {
+  id: string;
+  name: string;
+  amount: number;
+};
 
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [items, setItems] = useState([
-    { id: crypto.randomUUID(), name: '', amount: 0 },
-  ]);
-  const [manualTotal, setManualTotal] = useState<number | null>(null);
+// Define the data structure that PastSummaryForm will output on save
+export type PastSummaryFormData = {
+  year: number;
+  month: number;
+  items: { name: string; amount: number }[];
+  totalPaid: number;
+};
+
+interface PastSummaryFormProps {
+  initialData?: { // Optional initial data for editing
+    year: number;
+    month: number;
+    items: { name: string; amount: number }[];
+    totalPaid: number;
+  };
+  propYear?: number; // New prop for fixed year
+  propMonth?: number; // New prop for fixed month
+  onSave: (data: PastSummaryFormData) => Promise<void>; // Callback for saving
+  onCancel: () => void; // Callback for canceling
+}
+
+export const PastSummaryForm = ({ initialData, propYear, propMonth, onSave, onCancel }: PastSummaryFormProps) => {
+  const now = new Date();
+
+  const [year, setYear] = useState(propYear ?? initialData?.year ?? now.getFullYear());
+  const [month, setMonth] = useState(propMonth ?? initialData?.month ?? now.getMonth() + 1);
+  const [items, setItems] = useState<PastItem[]>(
+    initialData?.items?.map(item => ({
+      id: crypto.randomUUID(), // Generate new IDs for editable items
+      name: item.name,
+      amount: item.amount,
+    })) || [{ id: crypto.randomUUID(), name: '', amount: 0 }]
+  );
+  const [manualTotal, setManualTotal] = useState<number | null>(initialData?.totalPaid ?? null);
+
+  // Effect to reset form state when initialData or propYear/propMonth changes
+  useEffect(() => {
+    if (propYear !== undefined) setYear(propYear);
+    if (propMonth !== undefined) setMonth(propMonth);
+
+    if (initialData) {
+      setYear(propYear ?? initialData.year);
+      setMonth(propMonth ?? initialData.month);
+      setItems(
+        initialData.items?.map(item => ({
+          id: crypto.randomUUID(),
+          name: item.name,
+          amount: item.amount,
+        })) || [{ id: crypto.randomUUID(), name: '', amount: 0 }]
+      );
+      setManualTotal(initialData.totalPaid ?? null);
+    } else if (propYear === undefined && propMonth === undefined) {
+      // Reset to default for new entry if no initialData and no fixed props
+      setYear(now.getFullYear());
+      setMonth(now.getMonth() + 1);
+      setItems([{ id: crypto.randomUUID(), name: '', amount: 0 }]);
+      setManualTotal(null);
+    }
+  }, [initialData, propYear, propMonth]);
+
 
   const calculatedTotal = useMemo(
     () => items.reduce((sum, i) => sum + (i.amount || 0), 0),
@@ -24,32 +78,28 @@ export const PastSummaryForm = () => {
 
   /* ---------- handlers ---------- */
 
-  const updateItem = (id: string, patch: Partial<typeof items[0]>) => {
-    setItems(items =>
-      items.map(i => (i.id === id ? { ...i, ...patch } : i))
+  const updateItem = (id: string, patch: Partial<PastItem>) => {
+    setItems(currentItems =>
+      currentItems.map(i => (i.id === id ? { ...i, ...patch } : i))
     );
   };
 
   const addItem = () => {
-    setItems([...items, { id: crypto.randomUUID(), name: '', amount: 0 }]);
+    setItems(currentItems => [...currentItems, { id: crypto.randomUUID(), name: '', amount: 0 }]);
   };
 
   const removeItem = (id: string) => {
-    setItems(items.filter(i => i.id !== id));
+    setItems(currentItems => currentItems.filter(i => i.id !== id));
   };
 
-  const save = async () => {
-    if (!user) {
-      toast.error('ログインしてください');
-      return;
-    }
-
+  const handleSubmit = async () => { // Renamed save to handleSubmit
     // Validation
     if (!year || !month) {
       toast.error('年月を入力してください');
       return;
     }
-    if (items.length === 0 || !items.some(i => i.name && i.amount > 0)) {
+    const filteredItems = items.filter(i => i.name && i.amount > 0);
+    if (filteredItems.length === 0) {
       toast.error('項目を1つ以上入力してください');
       return;
     }
@@ -58,44 +108,22 @@ export const PastSummaryForm = () => {
       return;
     }
 
-    try {
-      const ref = collection(
-        db,
-        'artifacts',
-        'kakeibo-app-v2',
-        'users',
-        user.uid,
-        'monthlySummaries'
-      );
+    const formData: PastSummaryFormData = {
+      year,
+      month,
+      totalPaid: total,
+      items: filteredItems.map(i => ({
+        name: i.name,
+        amount: i.amount,
+      })),
+    };
 
-      await addDoc(ref, {
-        year,
-        month,
-        totalPaid: total,
-        items: items
-          .filter(i => i.name && i.amount > 0)
-          .map(i => ({
-            name: i.name,
-            amount: i.amount,
-          })),
-        salaryPeriodId: null, // Explicitly null for manual entries
-        source: 'manual', // Mark as manual entry
-        createdAt: serverTimestamp(),
-      });
-      toast.success('履歴を保存しました');
-      // Optionally reset form or navigate
-      setItems([{ id: crypto.randomUUID(), name: '', amount: 0 }]);
-      setManualTotal(null);
-      setYear(now.getFullYear());
-      setMonth(now.getMonth() + 1);
-
-    } catch (error) {
-      console.error('Error saving past summary:', error);
-      toast.error('履歴の保存に失敗しました');
-    }
+    await onSave(formData); // Call the onSave prop
   };
 
   /* ---------- render ---------- */
+
+  const isYearMonthFixed = propYear !== undefined || propMonth !== undefined;
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-8">
@@ -106,6 +134,7 @@ export const PastSummaryForm = () => {
           value={year}
           onChange={e => setYear(+e.target.value)}
           className="input"
+          disabled={isYearMonthFixed} // Disable if fixed
         />
         <input
           type="number"
@@ -114,6 +143,7 @@ export const PastSummaryForm = () => {
           min={1}
           max={12}
           className="input"
+          disabled={isYearMonthFixed} // Disable if fixed
         />
       </div>
 
@@ -160,10 +190,15 @@ export const PastSummaryForm = () => {
         </div>
       </div>
 
-      {/* save */}
-      <button className="primary-btn self-end" onClick={save}>
-        履歴として保存
-      </button>
+      {/* save / cancel buttons */}
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} className="secondary-btn">
+          キャンセル
+        </button>
+        <button onClick={handleSubmit} className="primary-btn">
+          保存
+        </button>
+      </div>
     </div>
   );
 };

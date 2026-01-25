@@ -1,128 +1,85 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MonthlySummary } from '../types';
-import { collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import { PastSummaryForm, PastSummaryFormData } from './PastSummaryForm';
 
 type Props = {
   summary: MonthlySummary | null;
   onClose: () => void;
 };
 
-// Define PastItem type locally for the form state
-type PastItem = {
-  id: string;
-  name: string;
-  amount: number;
-};
-
 export const HistoryDetailModal = ({ summary, onClose }: Props) => {
   const { user } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [year, setYear] = useState(summary?.year || new Date().getFullYear());
-  const [month, setMonth] = useState(summary?.month || new Date().getMonth() + 1);
-  const [items, setItems] = useState<PastItem[]>(
-    summary?.items?.map(item => ({
-      id: crypto.randomUUID(),
-      name: item.name,
-      amount: item.amount,
-    })) || [{ id: crypto.randomUUID(), name: '', amount: 0 }]
-  );
-  const [manualTotal, setManualTotal] = useState<number | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
 
-  // Effect to reset form state when summary changes or modal opens/closes
+  // Effect to reset modes when summary changes
   useEffect(() => {
     if (summary) {
-      setYear(summary.year);
-      setMonth(summary.month);
-      setItems(
-        summary.items?.map(item => ({
-          id: crypto.randomUUID(),
-          name: item.name,
-          amount: item.amount,
-        })) || [{ id: crypto.randomUUID(), name: '', amount: 0 }]
-      );
-      setManualTotal(null); // Reset manual total on new summary
-      setIsEditing(false); // Always start in view mode
+      setIsEditing(false);
+      setIsCreatingNew(false);
     }
   }, [summary]);
 
-  const calculatedTotal = useMemo(
-    () => items.reduce((sum, i) => sum + (i.amount || 0), 0),
-    [items]
-  );
-
-  const total = manualTotal ?? calculatedTotal;
-
-  /* ---------- handlers for editing ---------- */
-  const updateItem = (id: string, patch: Partial<PastItem>) => {
-    setItems(currentItems =>
-      currentItems.map(i => (i.id === id ? { ...i, ...patch } : i))
-    );
-  };
-
-  const addItem = () => {
-    setItems(currentItems => [...currentItems, { id: crypto.randomUUID(), name: '', amount: 0 }]);
-  };
-
-  const removeItem = (id: string) => {
-    setItems(currentItems => currentItems.filter(i => i.id !== id));
-  };
-
-  const handleSave = async () => {
-    if (!user || !summary) {
+  const handleSave = async (formData: PastSummaryFormData) => {
+    if (!user) {
       toast.error('ログインしてください');
       return;
     }
 
-    // Validation (similar to PastSummaryForm)
-    if (!year || !month) {
-      toast.error('年月を入力してください');
-      return;
-    }
-    const filteredItems = items.filter(i => i.name && i.amount > 0);
-    if (filteredItems.length === 0) {
-      toast.error('項目を1つ以上入力してください');
-      return;
-    }
-    if (total <= 0) {
-      toast.error('合計金額は0より大きくしてください');
-      return;
-    }
-
     try {
-      const summaryRef = doc(
+      const summariesRef = collection(
         db,
         'artifacts',
         'kakeibo-app-v2',
         'users',
         user.uid,
-        'monthlySummaries',
-        summary.id
+        'monthlySummaries'
       );
 
-      await updateDoc(summaryRef, {
-        year,
-        month,
-        totalPaid: total,
-        items: filteredItems.map(i => ({
-          name: i.name,
-          amount: i.amount,
-        })),
-        updatedAt: serverTimestamp(), // Add an updatedAt timestamp
-      });
-      toast.success('履歴を更新しました');
-      setIsEditing(false); // Exit edit mode
-      // onClose(); // Optionally close modal after save
+      if (isCreatingNew) {
+        // Create new summary using setDoc with year-month as docId
+        const docId = `${formData.year}-${String(formData.month).padStart(2,'0')}`;
+        const summaryDocRef = doc(summariesRef, docId);
+
+        await setDoc(summaryDocRef, {
+          ...formData,
+          salaryPeriodId: null, // Explicitly null for manual entries
+          source: 'manual', // Mark as manual entry
+          createdAt: serverTimestamp(),
+        });
+        toast.success('新しい履歴を作成しました');
+        setIsCreatingNew(false); // Exit create mode
+        onClose(); // Close modal after creating new
+      } else if (summary) {
+        // Update existing summary
+        const summaryRef = doc(summariesRef, summary.id);
+        await updateDoc(summaryRef, {
+          ...formData,
+          updatedAt: serverTimestamp(), // Add an updatedAt timestamp
+        });
+        toast.success('履歴を更新しました');
+        setIsEditing(false); // Exit edit mode
+      }
     } catch (error) {
-      console.error('Error updating summary:', error);
-      toast.error('履歴の更新に失敗しました');
+      console.error('Error saving summary:', error);
+      toast.error('履歴の保存に失敗しました');
     }
   };
 
+  const handleCancel = () => {
+    setIsEditing(false);
+    setIsCreatingNew(false);
+  };
+
   if (!summary) return null;
+
+  // Determine if the current summary has no items (for "入力する" button)
+  const hasNoItems = !summary.items || summary.items.length === 0;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -133,9 +90,14 @@ export const HistoryDetailModal = ({ summary, onClose }: Props) => {
             {summary.year}年 {summary.month}月
           </div>
           <div className="flex gap-2">
-            {summary.source === 'manual' && !isEditing && (
+            {summary.source === 'manual' && !isEditing && !isCreatingNew && (
               <button onClick={() => setIsEditing(true)} className="text-sm text-primary">
                 編集
+              </button>
+            )}
+            {hasNoItems && !isEditing && !isCreatingNew && ( // Show "入力する" button if no items
+              <button onClick={() => setIsCreatingNew(true)} className="text-sm text-primary">
+                入力する
               </button>
             )}
             <button onClick={onClose}>✕</button>
@@ -149,75 +111,15 @@ export const HistoryDetailModal = ({ summary, onClose }: Props) => {
           </div>
         )}
 
-        {isEditing ? (
-          /* ---------- Edit Mode ---------- */
-          <div className="flex flex-col gap-4">
-            {/* Year/Month inputs */}
-            <div className="flex gap-4">
-              <input
-                type="number"
-                value={year}
-                onChange={e => setYear(+e.target.value)}
-                className="input"
-              />
-              <input
-                type="number"
-                value={month}
-                onChange={e => setMonth(+e.target.value)}
-                min={1}
-                max={12}
-                className="input"
-              />
-            </div>
-
-            {/* Items editor */}
-            <div className="flex flex-col gap-3">
-              {items.map(item => (
-                <div key={item.id} className="flex gap-2">
-                  <input
-                    value={item.name}
-                    onChange={e => updateItem(item.id, { name: e.target.value })}
-                    placeholder="項目名"
-                    className="input flex-1"
-                  />
-                  <input
-                    type="number"
-                    value={item.amount}
-                    onChange={e => updateItem(item.id, { amount: +e.target.value })}
-                    className="input w-32 text-right"
-                  />
-                  <button onClick={() => removeItem(item.id)}>×</button>
-                </div>
-              ))}
-              <button onClick={addItem} className="text-sm text-primary">
-                ＋ 項目を追加
-              </button>
-            </div>
-
-            {/* Total input */}
-            <div className="border-t pt-4 flex flex-col gap-2">
-              <div className="text-sm text-neutral-muted">合計金額</div>
-              <input
-                type="number"
-                value={total}
-                onChange={e => setManualTotal(+e.target.value)}
-                className="input text-right text-lg font-bold"
-              />
-              <div className="text-xs text-neutral-muted">
-                ※ 自動計算されます（手動で修正可）
-              </div>
-            </div>
-
-            {/* Save/Cancel buttons */}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setIsEditing(false)} className="secondary-btn">
-                キャンセル
-              </button>
-              <button onClick={handleSave} className="primary-btn">
-                保存
-              </button>
-            </div>
-          </div>
+        {(isEditing || isCreatingNew) ? (
+          /* ---------- Edit/Create Mode ---------- */
+          <PastSummaryForm
+            propYear={summary.year} // Pass year as prop
+            propMonth={summary.month} // Pass month as prop
+            initialData={isCreatingNew ? undefined : summary} // Pass undefined for new creation
+            onSave={handleSave}
+            onCancel={handleCancel}
+          />
         ) : (
           /* ---------- View Mode ---------- */
           <div className="flex flex-col gap-4">
