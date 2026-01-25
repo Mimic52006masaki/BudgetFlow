@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, runTransaction, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { MonthlyFixedCost } from '../types';
+import { MonthlyFixedCost, FixedCostTemplate, MonthlySummary } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
@@ -211,5 +211,143 @@ export const useMonthlyCosts = (periodId?: string) => {
     }
   };
 
-  return { monthlyCosts, loading, payCost, cancelPayment, skipCost, unskipCost, addItem, deleteItem, updateItem };
+  // --- New functions for Monthly Snapshot ---
+
+  const getMonthlySummary = async (targetPeriodId: string): Promise<MonthlySummary | null> => {
+    if (!user) return null;
+    const summaryRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlySummaries');
+    const q = query(summaryRef, where('periodId', '==', targetPeriodId));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const docData = querySnapshot.docs[0].data();
+      return {
+        id: querySnapshot.docs[0].id,
+        ...docData,
+        items: docData.items.map((item: any) => ({
+          ...item,
+          paidAt: toDateSafe(item.paidAt),
+        })),
+        createdAt: toDateSafe(docData.createdAt),
+      } as MonthlySummary;
+    }
+    return null;
+  };
+
+  const getFixedCostTemplates = async (): Promise<FixedCostTemplate[]> => {
+    if (!user) return [];
+    const templatesRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'fixedCostTemplates');
+    const q = query(templatesRef, orderBy('order'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      updatedAt: toDateSafe(doc.data().updatedAt),
+    })) as FixedCostTemplate[];
+  };
+
+  const getMonthlyFixedCostsForPeriod = async (targetPeriodId: string): Promise<MonthlyFixedCost[]> => {
+    if (!user) return [];
+    const costsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts');
+    const q = query(costsRef, where('periodId', '==', targetPeriodId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        paymentDate: toDateSafe(data.paymentDate),
+        paidAt: toDateSafe(data.paidAt),
+      };
+    }) as MonthlyFixedCost[];
+  };
+
+  const buildPaymentDate = (periodIdStr: string, paymentDay: number | undefined): Date | undefined => {
+    if (!paymentDay) return undefined;
+
+    const [yearStr, monthStr] = periodIdStr.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10) - 1; // Month is 0-indexed in Date
+
+    const date = new Date(year, month, paymentDay);
+
+    // Check if the day overflows to the next month
+    if (date.getMonth() !== month) {
+      // If it overflows, set to the last day of the target month
+      return new Date(year, month + 1, 0);
+    }
+    return date;
+  };
+
+  const createMonthlyFixedCostInternal = async (itemData: Omit<MonthlyFixedCost, 'id'>) => {
+    if (!user) return;
+    const costsRef = collection(db, 'artifacts', 'kakeibo-app-v2', 'users', user.uid, 'monthlyFixedCosts');
+    await addDoc(costsRef, {
+      ...itemData,
+      order: itemData.order !== undefined ? itemData.order : monthlyCosts.length, // itemData に order があればそれを使用
+    });
+  };
+
+  const runMonthlySnapshot = async ({ fromPeriodId, toPeriodId }: { fromPeriodId: string; toPeriodId: string }) => {
+    if (!user) {
+      toast.error('ユーザーが認証されていません。');
+      return;
+    }
+
+    try {
+      // 1. 先月のサマリー取得
+      const prevSummary = await getMonthlySummary(fromPeriodId);
+      if (!prevSummary) {
+        console.log(`No summary found for previous period: ${fromPeriodId}`);
+        toast.info('先月のサマリーが見つかりませんでした。');
+        return;
+      }
+
+      // 2. FixedCostTemplate 一覧取得
+      const templates = await getFixedCostTemplates();
+
+      // 3. 既存ToDo（今月）取得（重複防止用）
+      const existing = await getMonthlyFixedCostsForPeriod(toPeriodId);
+
+      for (const item of prevSummary.items) {
+        // 4. 重複防止
+        const alreadyExists = existing.some(fc =>
+          fc.name === item.name &&
+          fc.bankAccountId === item.bankAccountId
+        );
+        if (alreadyExists) {
+          console.log(`Skipping existing item: ${item.name} for ${toPeriodId}`);
+          continue;
+        }
+
+        // 5. テンプレート紐付け
+        const template = templates.find(t =>
+          t.name === item.name &&
+          t.bankAccountId === item.bankAccountId
+        );
+
+        // 6. 支払日決定
+        const paymentDate = buildPaymentDate(toPeriodId, template?.paymentDay);
+
+        // 7. ToDo生成
+        console.log('createMonthlyFixedCostInternal called for:', item.name, 'paymentDate:', paymentDate); // Debug log
+        await createMonthlyFixedCostInternal({
+          periodId: toPeriodId,
+          name: item.name,
+          budget: item.amount,
+          bankAccountId: item.bankAccountId,
+          status: 'pending', // Initial status is 'pending'
+          actualAmount: undefined,
+          paymentDate,
+          isFallback: !template, // UI用フラグ（任意）
+          order: template?.order ?? 0,
+        });
+      }
+      toast.success('今月の固定費ToDoを作成しました');
+    } catch (error) {
+      console.error('Error running monthly snapshot:', error);
+      toast.error('月次スナップショットの実行に失敗しました。');
+    }
+  };
+
+  return { monthlyCosts, loading, payCost, cancelPayment, skipCost, unskipCost, addItem, deleteItem, updateItem, runMonthlySnapshot };
 };
