@@ -1,0 +1,7 @@
+feat: Refactor useMonthlyCosts.test.ts for improved readability and stability
+
+- Optimized firebase/firestore mocks to correctly handle collection and addDoc.
+- Introduced a helper function `setupMockGetDocs` to simplify mock setup for getDocs.
+- Ensured correct order property handling in createMonthlyFixedCostInternal.
+- Resolved ReferenceReferences and TypeError related to mock scope and undefined properties.
+- Enhanced test maintainability and clarity by centralizing mock definitions and test data.

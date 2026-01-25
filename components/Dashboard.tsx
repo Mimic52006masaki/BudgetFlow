@@ -1,6 +1,121 @@
 import React, { useState } from 'react';
 import { MOCK_ACCOUNTS, MOCK_COSTS } from '../constants';
 import { BankAccount, FixedCost, FixedCostTemplate, MonthlyFixedCost, SalaryPeriod } from '../types';
+import { getPreviousPeriodId } from '../utils/period'; // Added this line
+
+interface DashboardProps {
+  accounts: BankAccount[];
+  templates: FixedCostTemplate[];
+  monthlyCosts: MonthlyFixedCost[];
+  activePeriod?: SalaryPeriod | null;
+  onAddAccount: () => void;
+  onEditAccount: (account: BankAccount) => void;
+  onDeleteAccount?: (action: 'check' | 'delete', accountId: string) => Promise<any>;
+  onAddTemplate: () => void;
+  onEditTemplate: (template: FixedCostTemplate) => void;
+  onDeleteTemplate?: (templateId: string) => void;
+  onAddItem: () => void;
+  onEditCost: (cost: FixedCost) => void;
+  onDeleteItem?: (costId: string) => void;
+  onUpdateItem?: (costId: string, updates: Partial<MonthlyFixedCost>) => void;
+  onEditPaymentDate?: (cost: MonthlyFixedCost) => void;
+  onStartNewPeriod: (startDate: Date, templates: FixedCostTemplate[]) => void;
+  onClosePeriod: (summary?: any) => void;
+  onPayCost: (costId: string, actualAmount: number, accountId: string, paidAt: string) => void;
+  onCancelPayment: (costId: string) => void;
+  onSkipCost: (costId: string) => void;
+  onUnskipCost: (costId: string) => void;
+  onRunMonthlySnapshot: (fromPeriodId: string, toPeriodId: string) => void; // Added this line
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({
+  accounts,
+  templates,
+  monthlyCosts,
+  activePeriod,
+  onAddAccount,
+  onEditAccount,
+  onDeleteAccount,
+  onAddTemplate,
+  onEditTemplate,
+  onDeleteTemplate,
+  onAddItem,
+  onEditCost,
+  onDeleteItem,
+  onUpdateItem,
+  onEditPaymentDate,
+  onStartNewPeriod,
+  onClosePeriod,
+  onPayCost,
+  onCancelPayment,
+  onSkipCost,
+  onUnskipCost,
+  onRunMonthlySnapshot // Added this line
+}) => {
+  const [editingField, setEditingField] = useState<{ costId: string; field: 'paymentDay' | 'budget' | 'bankAccountId' } | null>(null);
+  const [editingValue, setEditingValue] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'unpaid' | 'paid'>('unpaid');
+  const totalAssets = accounts.reduce((acc, curr) => acc + curr.balance, 0);
+  const paidAmount = monthlyCosts.filter(c => c.status === 'paid').reduce((acc, curr) => acc + (curr.actualAmount || 0), 0);
+  const totalBudget = monthlyCosts.reduce((acc, curr) => acc + curr.budget, 0);
+  const progressPercent = totalBudget > 0 ? Math.round((paidAmount / totalBudget) * 100) : 0;
+  const filteredCosts = activeTab === 'paid' ? monthlyCosts.filter(c => c.status === 'paid') : monthlyCosts.filter(c => c.status !== 'paid');
+
+  const currentPeriodId = activePeriod?.id || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const prevPeriodId = getPreviousPeriodId(currentPeriodId);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2 border-b border-border-subtle">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="text-xs font-mono text-primary mb-1 uppercase tracking-widest font-bold">現在のサイクル</span>
+            <h2 className="text-3xl md:text-5xl font-black tracking-tighter text-neutral-light uppercase font-display">
+              {activePeriod ? activePeriod.startDate.getFullYear() : new Date().getFullYear()} <span className="text-neutral-muted font-light">/</span> {activePeriod ? (activePeriod.startDate.getMonth() + 1).toString().padStart(2, '0') : (new Date().getMonth() + 1).toString().padStart(2, '0')}
+            </h2>
+          </div>
+          <div className="h-12 w-px bg-border-subtle hidden md:block"></div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 text-neutral-muted text-xs font-mono">
+              <span className="material-symbols-outlined text-sm text-primary">calendar_month</span>
+              <span>期間: {activePeriod ? `${activePeriod.startDate.getMonth() + 1}/${activePeriod.startDate.getDate()} - ${activePeriod.endDate ? (activePeriod.endDate.getMonth() + 1) + '/' + activePeriod.endDate.getDate() : '進行中'}` : '未開始'}</span>
+            </div>
+            <div className="w-full h-1 bg-background-element rounded-full overflow-hidden border border-border-subtle">
+              <div className="h-full bg-primary" style={{ width: `${progressPercent}%` }}></div>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          {/* Temporary button for manual snapshot testing */}
+          <button
+            onClick={() => onRunMonthlySnapshot(prevPeriodId, currentPeriodId)}
+            className="cyber-btn flex items-center gap-2 px-6 py-2.5 bg-accent-cyan text-white text-xs font-bold uppercase tracking-wider hover:bg-accent-cyan-dark transition-all"
+          >
+            <span className="material-symbols-outlined text-sm">camera_alt</span>
+            スナップショット実行 (テスト用)
+          </button>
+          {activePeriod ? (
+            <button
+              onClick={() => onClosePeriod()}
+              className="cyber-btn flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold uppercase tracking-wider hover:bg-primary-dark transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">check_circle</span>
+              今月を確定
+            </button>
+          ) : (
+            <button
+              onClick={() => onStartNewPeriod(new Date(), templates)}
+              className="cyber-btn flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-xs font-bold uppercase tracking-wider hover:bg-primary-dark transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">play_circle</span>
+              今月を開始
+            </button>
+          )}
+        </div>
+      </div>
+import { MOCK_ACCOUNTS, MOCK_COSTS } from '../constants';
+import { BankAccount, FixedCost, FixedCostTemplate, MonthlyFixedCost, SalaryPeriod } from '../types';
 
 interface DashboardProps {
   accounts: BankAccount[];
@@ -316,7 +431,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="overflow-y-auto custom-scrollbar max-h-[600px]">
               <div className="space-y-3 p-4">
                 {filteredCosts.map(cost => (
-                  <div key={cost.id} className={`group relative bg-background-element border border-border-subtle p-4 rounded-sm hover:border-primary/50 transition-all active:scale-[0.99] ${cost.status === 'pending' && (cost.paymentDate || new Date()) < new Date() && 'bg-accent-danger/5 border-accent-danger'}`}>
+                  <div key={cost.id} className={`
+                    group relative bg-background-element p-4 rounded-sm transition-all
+                    ${cost.isFallback ? 'border-accent-warning/60 bg-accent-warning/5' : 'border-border-subtle'}
+                    ${cost.status === 'pending' && (cost.paymentDate || new Date()) < new Date() && 'bg-accent-danger/5 border-accent-danger'}
+                  `}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
                         <div className={`size-10 rounded-full bg-gray-100 flex items-center justify-center text-text-sub shrink-0 ${cost.status === 'paid' ? 'bg-accent-success/10 text-accent-success' : cost.status === 'skipped' ? 'bg-neutral-muted/10 text-neutral-muted' : 'bg-primary/10 text-primary group-hover:bg-primary/20'}`}>
@@ -326,12 +445,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div>
                           <h4 className={`font-medium text-sm ${cost.status === 'paid' || cost.status === 'skipped' ? 'line-through' : ''}`}>{cost.name}</h4>
-                          <p className="text-xs text-text-sub">
-                            {(() => {
-                              const date = cost.paymentDate || new Date();
-                              return `${date.getMonth() + 1}月${date.getDate()}日 予定`;
-                            })()}
-                          </p>
+                          {cost.isFallback ? (
+                            <p className="text-xs text-accent-warning flex items-center gap-1">
+                              <span className="material-symbols-outlined text-sm">warning</span>
+                              支払日が未設定です
+                            </p>
+                          ) : (
+                            <p className="text-xs text-text-sub">
+                              {(() => {
+                                const date = cost.paymentDate || new Date();
+                                return `${date.getMonth() + 1}月${date.getDate()}日 予定`;
+                              })()}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -367,6 +493,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             >
                               <span className="material-symbols-outlined text-sm">check</span>
                               支払う
+                              {cost.isFallback && (
+                                <span className="ml-2 text-[10px] text-accent-warning font-mono">
+                                  要設定
+                                </span>
+                              )}
                             </button>
                             <button
                               onClick={() => onSkipCost(cost.id)}

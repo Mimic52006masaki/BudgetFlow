@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, FixedCost, BankAccount, FixedCostTemplate } from './types';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
@@ -16,6 +16,7 @@ import { useHistory } from './hooks/useHistory';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { getPreviousPeriodId } from './utils/period'; // Added this line
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -23,10 +24,26 @@ const AppContent: React.FC = () => {
   const { accounts: firestoreAccounts, addAccount, updateAccount, checkAccountUsage, deleteAccount } = useAccounts();
   const { templates, addTemplate, updateTemplate, archiveTemplate, deleteTemplate } = useTemplates();
   const { activePeriod, closeAndStartNextPeriod } = useSalaryPeriods();
-  const { monthlyCosts, payCost, cancelPayment, skipCost, unskipCost, addItem, deleteItem, updateItem } = useMonthlyCosts(activePeriod?.id);
+  const { monthlyCosts, payCost, cancelPayment, skipCost, unskipCost, addItem, deleteItem, updateItem, runMonthlySnapshot } = useMonthlyCosts(activePeriod?.id);
   const { records } = useHistory();
   const accounts = firestoreAccounts.length > 0 ? firestoreAccounts : MOCK_ACCOUNTS;
   const [modal, setModal] = useState<{ type: 'ACCOUNT' | 'ACCOUNT_EDIT' | 'TEMPLATE' | 'TEMPLATE_EDIT' | 'COST_EDIT' | 'ITEM_ADD' | 'COST_UPDATE', cost?: FixedCost, account?: BankAccount, template?: FixedCostTemplate } | null>(null);
+
+  // Automatic snapshot execution on initial dashboard load for a new month
+  useEffect(() => {
+    if (!user || !activePeriod || monthlyCosts.length > 0) {
+      return;
+    }
+
+    const currentPeriodId = activePeriod.id;
+    const prevPeriodId = getPreviousPeriodId(currentPeriodId);
+
+    // Check if previousPeriodSummary exists (this check is implicitly handled by runMonthlySnapshot)
+    // For now, we rely on runMonthlySnapshot to handle the case where prevSummary is null.
+    console.log(`Attempting automatic snapshot for ${currentPeriodId} from ${prevPeriodId}`);
+    runMonthlySnapshot({ fromPeriodId: prevPeriodId, toPeriodId: currentPeriodId });
+
+  }, [user, activePeriod, monthlyCosts.length, runMonthlySnapshot]); // Added runMonthlySnapshot to dependencies
 
   const handleSaveAccount = async (accountData: Omit<BankAccount, 'id' | 'trend'>) => {
     if (modal?.type === 'ACCOUNT_EDIT' && modal.account) {
@@ -142,6 +159,7 @@ const AppContent: React.FC = () => {
             onCancelPayment={cancelPayment}
             onSkipCost={skipCost}
             onUnskipCost={unskipCost}
+            onRunMonthlySnapshot={runMonthlySnapshot} // Added this line
           />
         );
       case View.HISTORY:
