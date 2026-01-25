@@ -4,6 +4,12 @@ import { MonthlySummary, BankAccount, ChartPoint } from '../types';
 import { HistoryDetailModal } from './HistoryDetailModal';
 import { buildMonthlyChartData } from '../utils/analytics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { MonthlyComparisonChart } from './MonthlyComparisonChart';
+import { useAuth } from '../contexts/AuthContext';
+import { db } from '../firebase';
+import { collection, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { toast } from 'react-toastify';
+import { PastSummaryForm, PastSummaryFormData } from './PastSummaryForm';
 
 interface HistoryTableProps {
   records: MonthlySummary[];
@@ -12,8 +18,57 @@ interface HistoryTableProps {
 
 export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts }) => {
   const [selectedSummary, setSelectedSummary] = useState<MonthlySummary | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const chartData = useMemo(() => buildMonthlyChartData(records), [records]);
+
+  const { user } = useAuth();
+
+  const handleCreatePastSummary = async (data: PastSummaryFormData) => {
+    if (!user) {
+      toast.error('ログインしてください');
+      return;
+    }
+
+    const summariesRef = collection(
+      db,
+      'artifacts',
+      'kakeibo-app-v2',
+      'users',
+      user.uid,
+      'monthlySummaries'
+    );
+
+    const docId = `${data.year}-${String(data.month).padStart(2, '0')}`;
+    const docRef = doc(summariesRef, docId);
+    const docSnap = await getDoc(docRef); // Check if document exists
+
+    let isOverwriting = false;
+    if (docSnap.exists()) {
+      const confirmOverwrite = window.confirm(
+        `${data.year}年${data.month}月のデータは既に存在します。上書きしますか？`
+      );
+      if (!confirmOverwrite) {
+        toast.info('上書きをキャンセルしました');
+        return;
+      }
+      isOverwriting = true;
+    }
+
+    await setDoc(docRef, { // Use docRef here
+      ...data,
+      source: 'manual',
+      salaryPeriodId: null,
+      createdAt: serverTimestamp(),
+    });
+
+    if (isOverwriting) {
+      toast.success(`${data.year}年${data.month}月のデータを上書きしました`);
+    } else {
+      toast.success('過去の月を追加しました');
+    }
+    setIsCreateModalOpen(false);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,6 +98,12 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
           </div>
           <button className="cyber-btn flex items-center gap-2 px-5 py-2.5 bg-background-panel border border-border-subtle text-xs font-bold uppercase tracking-wider text-neutral-muted hover:border-primary hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-sm">download</span> CSV出力
+          </button>
+          <button
+            className="cyber-btn flex items-center gap-2 px-5 py-2.5 bg-background-panel border border-border-subtle text-xs font-bold uppercase tracking-wider text-primary hover:border-primary hover:text-primary transition-colors"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <span className="material-symbols-outlined text-sm">add</span> 過去の月を追加
           </button>
         </div>
       </div>
@@ -86,6 +147,9 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Monthly Comparison Chart */}
+      <MonthlyComparisonChart records={records} />
 
       <div className="hud-panel rounded-sm border border-border-subtle flex flex-col overflow-hidden bg-background-panel">
         <div className="overflow-x-auto custom-scrollbar">
@@ -149,6 +213,25 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ records, accounts })
           summary={selectedSummary}
           onClose={() => setSelectedSummary(null)}
         />
+      )}
+
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-neutral-900">
+                過去の月を追加
+              </h3>
+              <p className="text-xs text-neutral-muted mt-1">
+                過去の固定費実績を手動で入力します
+              </p>
+            </div>
+            <PastSummaryForm
+              onSave={handleCreatePastSummary}
+              onCancel={() => setIsCreateModalOpen(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { MonthlySummary, ChartPoint } from '../types';
+import { MonthlySummary, ChartPoint, MonthlyComparisonPoint } from '../types';
 
 export function buildMonthlyChartData(
   summaries: MonthlySummary[],
@@ -55,3 +55,32 @@ export function buildMonthlyChartData(
 // 現状、HistoryTable.tsx では使用されていないため、コメントアウトまたは削除を検討。
 // export const groupRecordsByMonth = (records: FixedCostRecord[]): MonthlyRecord[] => { ... };
 // export const getLast6MonthsData = (records: FixedCostRecord[]): MonthlyRecord[] => { ... };
+
+export function buildMonthlyComparisonData(
+  summaries: MonthlySummary[],
+  range: 'ALL' | '12' | '6' = 'ALL'
+): MonthlyComparisonPoint[] {
+  // 1. Sort summaries by year and month in ascending order
+  const sortedSummaries = [...summaries].sort((a, b) => {
+    if (a.year !== b.year) {
+      return a.year - b.year;
+    }
+    return a.month - b.month;
+  });
+
+  // 2. Apply range filter
+  let filteredSummaries = sortedSummaries;
+  if (range !== 'ALL') {
+    const limit = parseInt(range, 10);
+    filteredSummaries = sortedSummaries.slice(-limit); // Get the last 'limit' months
+  }
+
+  // 3. Map to MonthlyComparisonPoint
+  const comparisonData: MonthlyComparisonPoint[] = filteredSummaries.map(s => ({
+    label: `${s.year}/${String(s.month).padStart(2, '0')}`,
+    totalPaid: s.totalPaid,
+    hasNoItems: !s.items || s.items.length === 0,
+  }));
+
+  return comparisonData;
+}

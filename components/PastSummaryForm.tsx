@@ -23,17 +23,23 @@ interface PastSummaryFormProps {
     items: { name: string; amount: number }[];
     totalPaid: number;
   };
-  propYear?: number; // New prop for fixed year
-  propMonth?: number; // New prop for fixed month
+  year?: number; // 新規作成時に年月を固定する場合に指定します。initialDataが指定されている場合は無視されます。
+  month?: number; // 新規作成時に年月を固定する場合に指定します。initialDataが指定されている場合は無視されます。
   onSave: (data: PastSummaryFormData) => Promise<void>; // Callback for saving
   onCancel: () => void; // Callback for canceling
 }
 
-export const PastSummaryForm = ({ initialData, propYear, propMonth, onSave, onCancel }: PastSummaryFormProps) => {
+export const PastSummaryForm = ({
+  initialData,
+  year: fixedYear,
+  month: fixedMonth,
+  onSave,
+  onCancel,
+}: PastSummaryFormProps) => {
   const now = new Date();
 
-  const [year, setYear] = useState(propYear ?? initialData?.year ?? now.getFullYear());
-  const [month, setMonth] = useState(propMonth ?? initialData?.month ?? now.getMonth() + 1);
+  const [year, setYear] = useState(fixedYear ?? initialData?.year ?? now.getFullYear());
+  const [month, setMonth] = useState(fixedMonth ?? initialData?.month ?? now.getMonth() + 1);
   const [items, setItems] = useState<PastItem[]>(
     initialData?.items?.map(item => ({
       id: crypto.randomUUID(), // Generate new IDs for editable items
@@ -45,12 +51,12 @@ export const PastSummaryForm = ({ initialData, propYear, propMonth, onSave, onCa
 
   // Effect to reset form state when initialData or propYear/propMonth changes
   useEffect(() => {
-    if (propYear !== undefined) setYear(propYear);
-    if (propMonth !== undefined) setMonth(propMonth);
+    if (fixedYear !== undefined) setYear(fixedYear);
+    if (fixedMonth !== undefined) setMonth(fixedMonth);
 
     if (initialData) {
-      setYear(propYear ?? initialData.year);
-      setMonth(propMonth ?? initialData.month);
+      setYear(fixedYear ?? initialData.year);
+      setMonth(fixedMonth ?? initialData.month);
       setItems(
         initialData.items?.map(item => ({
           id: crypto.randomUUID(),
@@ -59,14 +65,14 @@ export const PastSummaryForm = ({ initialData, propYear, propMonth, onSave, onCa
         })) || [{ id: crypto.randomUUID(), name: '', amount: 0 }]
       );
       setManualTotal(initialData.totalPaid ?? null);
-    } else if (propYear === undefined && propMonth === undefined) {
+    } else if (fixedYear === undefined && fixedMonth === undefined) {
       // Reset to default for new entry if no initialData and no fixed props
       setYear(now.getFullYear());
       setMonth(now.getMonth() + 1);
       setItems([{ id: crypto.randomUUID(), name: '', amount: 0 }]);
       setManualTotal(null);
     }
-  }, [initialData, propYear, propMonth]);
+  }, [initialData, fixedYear, fixedMonth]);
 
 
   const calculatedTotal = useMemo(
@@ -123,7 +129,7 @@ export const PastSummaryForm = ({ initialData, propYear, propMonth, onSave, onCa
 
   /* ---------- render ---------- */
 
-  const isYearMonthFixed = propYear !== undefined || propMonth !== undefined;
+  const isYearMonthFixed = fixedYear !== undefined || fixedMonth !== undefined;
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-8">

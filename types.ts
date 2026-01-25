@@ -101,3 +101,9 @@ export type ChartPoint = {
   hasNoItems: boolean; // items が存在しない or 欠損補完月
   isForecast?: boolean;
 };
+
+export type MonthlyComparisonPoint = {
+  label: string;        // "YYYY/MM"
+  totalPaid: number;
+  hasNoItems: boolean;
+};
